@@ -50,6 +50,10 @@ This is the core trust model of the product.
 ## Next architecture steps
 
 - Add fixture-based tests for Linux sysfs parsing
-- Add block-device/storage correlation
-- Add benchmark module
+- Add richer block-device/storage correlation
+- Add safe read-only benchmark module
 - Add Tauri shell only after the CLI model feels solid
+
+## Current Linux storage correlation
+
+The Linux adapter now reads `/sys/class/block`, filters real disks, maps USB-backed disks to their parent USB device id, and surfaces model/vendor/size/mountpoints plus USB link speed when available.

@@ -34,6 +34,12 @@ Optional pretty JSON:
 cargo run -p linkmetry-cli -- inspect --pretty
 ```
 
+Storage correlation prototype:
+
+```bash
+cargo run -p linkmetry-cli -- storage --pretty
+```
+
 ## Product rule
 
 Linkmetry should never pretend to know more than the OS and hardware expose. If a conclusion is inferred, it must carry confidence and evidence.

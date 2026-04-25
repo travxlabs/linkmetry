@@ -7,6 +7,12 @@ pub struct DiagnosticReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageReport {
+    pub platform: Platform,
+    pub devices: Vec<StorageDevice>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Platform {
     Linux,
@@ -32,6 +38,26 @@ pub struct DiagnosticDevice {
     pub usb_version: Option<String>,
     pub device_class: Option<String>,
     pub interface_classes: Vec<String>,
+    pub evidence: Vec<Evidence>,
+    pub verdicts: Vec<Verdict>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageDevice {
+    pub name: String,
+    pub dev_path: String,
+    pub model: Option<String>,
+    pub vendor: Option<String>,
+    pub serial: Option<String>,
+    pub size_bytes: Option<u64>,
+    pub removable: Option<bool>,
+    pub rotational: Option<bool>,
+    pub transport: Option<String>,
+    pub mountpoints: Vec<String>,
+    pub sysfs_path: Option<String>,
+    pub usb_device_id: Option<String>,
+    pub usb_link_speed: Option<LinkSpeed>,
+    pub usb_product: Option<String>,
     pub evidence: Vec<Evidence>,
     pub verdicts: Vec<Verdict>,
 }
@@ -160,7 +186,10 @@ pub fn verdicts_for_device(device: &DiagnosticDevice) -> Vec<Verdict> {
             } else {
                 verdicts.push(Verdict {
                     title: "High-speed USB connection detected".to_string(),
-                    message: format!("The OS reports {}. Benchmarking is still needed before judging real-world performance.", speed.label),
+                    message: format!(
+                        "The OS reports {}. Benchmarking is still needed before judging real-world performance.",
+                        speed.label
+                    ),
                     confidence: Confidence::Medium,
                     evidence_keys: vec!["speed".to_string()],
                 });
@@ -172,6 +201,35 @@ pub fn verdicts_for_device(device: &DiagnosticDevice) -> Vec<Verdict> {
             message: "The OS did not expose a negotiated speed for this device through the current adapter. A benchmark or deeper platform-specific probe may be needed.".to_string(),
             confidence: Confidence::Low,
             evidence_keys: vec![],
+        });
+    }
+
+    verdicts
+}
+
+pub fn verdicts_for_storage(device: &StorageDevice) -> Vec<Verdict> {
+    let mut verdicts = Vec::new();
+
+    if device.transport.as_deref() == Some("usb") {
+        verdicts.push(Verdict {
+            title: "External USB storage detected".to_string(),
+            message: match &device.usb_link_speed {
+                Some(speed) => format!("This storage device is attached through USB and the OS reports {}. Benchmarking comes next to verify real-world throughput.", speed.label),
+                None => "This storage device is attached through USB. Linkmetry can correlate it with the USB connection path before benchmarking.".to_string(),
+            },
+            confidence: if device.usb_device_id.is_some() {
+                Confidence::High
+            } else {
+                Confidence::Medium
+            },
+            evidence_keys: vec!["sysfs_path".to_string(), "usb_device_id".to_string(), "usb_speed".to_string()],
+        });
+    } else {
+        verdicts.push(Verdict {
+            title: "Non-USB storage device".to_string(),
+            message: "This storage device does not appear to be attached through USB, so cable/path diagnosis is probably not relevant.".to_string(),
+            confidence: Confidence::Medium,
+            evidence_keys: vec!["sysfs_path".to_string()],
         });
     }
 

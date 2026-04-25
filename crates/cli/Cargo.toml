@@ -9,3 +9,4 @@ repository.workspace = true
 anyhow.workspace = true
 linkmetry-platform-linux = { path = "../platform-linux" }
 serde_json.workspace = true
+serde.workspace = true
