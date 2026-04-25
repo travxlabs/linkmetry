@@ -1,5 +1,7 @@
 use anyhow::{bail, Context, Result};
-use linkmetry_core::{verdicts_for_storage_benchmark, BenchmarkResult, StorageDevice, Verdict};
+use linkmetry_core::{
+    verdicts_for_storage_benchmark, BenchmarkResult, DeviceCard, StorageDevice, Verdict,
+};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -7,6 +9,7 @@ use std::path::{Path, PathBuf};
 struct StorageDiagnosisReport {
     target: String,
     storage: StorageDevice,
+    card: DeviceCard,
     benchmark: BenchmarkResult,
     verdicts: Vec<Verdict>,
 }
@@ -70,9 +73,13 @@ fn diagnose_storage(path: impl AsRef<Path>, iterations: u32) -> Result<StorageDi
     let benchmark = linkmetry_bench::benchmark_file_read(&canonical_path, iterations)?;
     let verdicts = verdicts_for_storage_benchmark(&storage, &benchmark);
 
+    let mut card = DeviceCard::from(&storage);
+    card.primary_verdict = verdicts.first().cloned();
+
     Ok(StorageDiagnosisReport {
         target: canonical_path.display().to_string(),
         storage,
+        card,
         benchmark,
         verdicts,
     })

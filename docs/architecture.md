@@ -65,3 +65,11 @@ The Linux adapter now reads `/sys/class/block`, filters real disks, maps USB-bac
 ## Current combined diagnosis
 
 `diagnose-storage` maps a benchmark target file back to the mounted storage device, carries through USB parent/link-speed evidence, runs the read-only benchmark, and emits a benchmark-aware verdict.
+
+## UI-shaped card model
+
+`DeviceCard` is the first UI-facing normalized shape. It condenses a storage device into title, subtitle, status tone, badges, primary verdict, and display facts so the future Tauri frontend does not have to understand raw sysfs details.
+
+## Test fixtures
+
+Linux sysfs fixture coverage now validates USB device parsing and storage-to-USB correlation using a Samsung T7-style fixture.

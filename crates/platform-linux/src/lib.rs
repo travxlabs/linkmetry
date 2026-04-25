@@ -43,6 +43,13 @@ pub fn inspect_storage_devices() -> Result<StorageReport> {
 
 pub fn inspect_storage_devices_from(root: &Path) -> Result<StorageReport> {
     let mounts = read_mountpoints();
+    inspect_storage_devices_from_with_mounts(root, &mounts)
+}
+
+pub fn inspect_storage_devices_from_with_mounts(
+    root: &Path,
+    mounts: &HashMap<String, Vec<String>>,
+) -> Result<StorageReport> {
     let entries = fs::read_dir(root)
         .with_context(|| format!("failed to read block sysfs root: {}", root.display()))?;
 
@@ -186,9 +193,7 @@ fn read_storage_device(
         None
     };
     let usb_device_id = extract_usb_device_id(&real_path);
-    let usb_root = usb_device_id
-        .as_ref()
-        .map(|id| Path::new(USB_SYSFS_ROOT).join(id));
+    let usb_root = usb_device_id.as_ref().map(|id| usb_sysfs_root().join(id));
     let usb_link_speed = usb_root
         .as_ref()
         .and_then(|path| read_trimmed(path.join("speed")))
@@ -252,6 +257,12 @@ fn read_storage_device(
 
     device.verdicts = verdicts_for_storage(&device);
     Ok(device)
+}
+
+fn usb_sysfs_root() -> std::path::PathBuf {
+    std::env::var_os("LINKMETRY_USB_SYSFS_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(USB_SYSFS_ROOT))
 }
 
 fn read_trimmed(path: impl AsRef<Path>) -> Option<String> {

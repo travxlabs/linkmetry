@@ -332,3 +332,104 @@ pub fn verdicts_for_storage_benchmark(
 
     verdicts
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceCard {
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub status: StatusTone,
+    pub badges: Vec<String>,
+    pub primary_verdict: Option<Verdict>,
+    pub facts: Vec<Fact>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StatusTone {
+    Good,
+    Warning,
+    Info,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Fact {
+    pub label: String,
+    pub value: String,
+}
+
+impl From<&StorageDevice> for DeviceCard {
+    fn from(device: &StorageDevice) -> Self {
+        let title = device
+            .model
+            .clone()
+            .or_else(|| device.usb_product.clone())
+            .unwrap_or_else(|| device.dev_path.clone());
+        let mut badges = Vec::new();
+        if let Some(transport) = &device.transport {
+            badges.push(transport.to_uppercase());
+        }
+        if let Some(speed) = &device.usb_link_speed {
+            badges.push(speed.label.clone());
+        }
+        if let Some(size) = device.size_bytes {
+            badges.push(format_size(size));
+        }
+
+        let primary_verdict = device.verdicts.first().cloned();
+        let status = match primary_verdict
+            .as_ref()
+            .map(|verdict| verdict.confidence.clone())
+        {
+            Some(Confidence::High) if device.transport.as_deref() == Some("usb") => {
+                StatusTone::Good
+            }
+            Some(Confidence::High) | Some(Confidence::Medium) => StatusTone::Info,
+            Some(Confidence::Low) => StatusTone::Warning,
+            None => StatusTone::Unknown,
+        };
+
+        let mut facts = vec![Fact {
+            label: "Device".to_string(),
+            value: device.dev_path.clone(),
+        }];
+        if let Some(vendor) = &device.vendor {
+            facts.push(Fact {
+                label: "Vendor".to_string(),
+                value: vendor.clone(),
+            });
+        }
+        if let Some(speed) = &device.usb_link_speed {
+            facts.push(Fact {
+                label: "USB link".to_string(),
+                value: speed.label.clone(),
+            });
+        }
+        if !device.mountpoints.is_empty() {
+            facts.push(Fact {
+                label: "Mounts".to_string(),
+                value: device.mountpoints.join(", "),
+            });
+        }
+
+        DeviceCard {
+            title,
+            subtitle: Some(device.dev_path.clone()),
+            status,
+            badges,
+            primary_verdict,
+            facts,
+        }
+    }
+}
+
+fn format_size(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    format!("{value:.1} {}", UNITS[unit])
+}
