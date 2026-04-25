@@ -49,3 +49,9 @@ Read-only file benchmark:
 ```bash
 cargo run -p linkmetry-cli -- bench-read --iterations 3 --pretty /path/to/large/file
 ```
+
+Combined storage diagnosis:
+
+```bash
+cargo run -p linkmetry-cli -- diagnose-storage --iterations 3 --pretty /path/to/large/file
+```

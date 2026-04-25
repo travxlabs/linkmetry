@@ -61,3 +61,7 @@ The Linux adapter now reads `/sys/class/block`, filters real disks, maps USB-bac
 ## Current benchmark prototype
 
 `linkmetry-bench` provides a safe read-only file benchmark. On Linux it uses `posix_fadvise` hints to reduce page-cache distortion between iterations. This is still a prototype and does not perform write tests or raw block-device reads.
+
+## Current combined diagnosis
+
+`diagnose-storage` maps a benchmark target file back to the mounted storage device, carries through USB parent/link-speed evidence, runs the read-only benchmark, and emits a benchmark-aware verdict.

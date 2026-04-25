@@ -254,3 +254,81 @@ pub fn verdicts_for_storage(device: &StorageDevice) -> Vec<Verdict> {
 
     verdicts
 }
+
+pub fn verdicts_for_storage_benchmark(
+    storage: &StorageDevice,
+    benchmark: &BenchmarkResult,
+) -> Vec<Verdict> {
+    let mut verdicts = Vec::new();
+    let speed = benchmark.average_mib_per_second;
+
+    if let Some(link_speed) = &storage.usb_link_speed {
+        if let Some(mbps) = link_speed.mbps {
+            if mbps <= 480.0 {
+                verdicts.push(Verdict {
+                    title: "Benchmark confirms a USB 2.0-class ceiling".to_string(),
+                    message: format!(
+                        "Average read speed was {:.0} MiB/s while the device is negotiating at {}. For external SSDs, this connection path is the likely bottleneck.",
+                        speed, link_speed.label
+                    ),
+                    confidence: Confidence::High,
+                    evidence_keys: vec!["usb_speed".to_string(), "benchmark".to_string()],
+                });
+            } else if mbps <= 5_000.0 {
+                if speed >= 350.0 {
+                    verdicts.push(Verdict {
+                        title: "Read speed looks healthy for a 5 Gbps USB path".to_string(),
+                        message: format!(
+                            "Average read speed was {:.0} MiB/s on a {} link. That is in the expected real-world range for many 5 Gbps external SSD paths.",
+                            speed, link_speed.label
+                        ),
+                        confidence: Confidence::High,
+                        evidence_keys: vec!["usb_speed".to_string(), "benchmark".to_string()],
+                    });
+                } else {
+                    verdicts.push(Verdict {
+                        title: "Read speed is below the usual 5 Gbps SSD range".to_string(),
+                        message: format!(
+                            "Average read speed was {:.0} MiB/s on a {} link. The USB path is high-speed, so the drive, enclosure, filesystem, file choice, or system load may be limiting performance.",
+                            speed, link_speed.label
+                        ),
+                        confidence: Confidence::Medium,
+                        evidence_keys: vec!["usb_speed".to_string(), "benchmark".to_string()],
+                    });
+                }
+            } else {
+                verdicts.push(Verdict {
+                    title: "Benchmark captured on high-speed USB storage".to_string(),
+                    message: format!(
+                        "Average read speed was {:.0} MiB/s on a {} link. More device-specific expectations are needed for a stronger verdict.",
+                        speed, link_speed.label
+                    ),
+                    confidence: Confidence::Medium,
+                    evidence_keys: vec!["usb_speed".to_string(), "benchmark".to_string()],
+                });
+            }
+        }
+    } else if storage.transport.as_deref() == Some("usb") {
+        verdicts.push(Verdict {
+            title: "Benchmark captured, but USB link speed is unavailable".to_string(),
+            message: format!(
+                "Average read speed was {:.0} MiB/s, but the OS did not expose a USB link speed for this storage device.",
+                speed
+            ),
+            confidence: Confidence::Low,
+            evidence_keys: vec!["benchmark".to_string()],
+        });
+    } else {
+        verdicts.push(Verdict {
+            title: "Benchmark captured on non-USB storage".to_string(),
+            message: format!(
+                "Average read speed was {:.0} MiB/s. This does not appear to be USB storage, so cable diagnosis is not relevant.",
+                speed
+            ),
+            confidence: Confidence::Medium,
+            evidence_keys: vec!["benchmark".to_string()],
+        });
+    }
+
+    verdicts
+}
