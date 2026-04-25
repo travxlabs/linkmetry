@@ -57,3 +57,7 @@ This is the core trust model of the product.
 ## Current Linux storage correlation
 
 The Linux adapter now reads `/sys/class/block`, filters real disks, maps USB-backed disks to their parent USB device id, and surfaces model/vendor/size/mountpoints plus USB link speed when available.
+
+## Current benchmark prototype
+
+`linkmetry-bench` provides a safe read-only file benchmark. On Linux it uses `posix_fadvise` hints to reduce page-cache distortion between iterations. This is still a prototype and does not perform write tests or raw block-device reads.

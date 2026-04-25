@@ -1,6 +1,25 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkResult {
+    pub kind: String,
+    pub target: String,
+    pub bytes: u64,
+    pub iterations: u32,
+    pub runs: Vec<BenchmarkRun>,
+    pub average_mib_per_second: f64,
+    pub best_mib_per_second: f64,
+    pub caveats: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkRun {
+    pub bytes_read: u64,
+    pub elapsed_seconds: f64,
+    pub mib_per_second: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticReport {
     pub platform: Platform,
     pub devices: Vec<DiagnosticDevice>,

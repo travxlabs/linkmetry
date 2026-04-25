@@ -8,5 +8,6 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 linkmetry-platform-linux = { path = "../platform-linux" }
+linkmetry-bench = { path = "../bench" }
 serde_json.workspace = true
 serde.workspace = true

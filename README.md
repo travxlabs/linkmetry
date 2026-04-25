@@ -43,3 +43,9 @@ cargo run -p linkmetry-cli -- storage --pretty
 ## Product rule
 
 Linkmetry should never pretend to know more than the OS and hardware expose. If a conclusion is inferred, it must carry confidence and evidence.
+
+Read-only file benchmark:
+
+```bash
+cargo run -p linkmetry-cli -- bench-read --iterations 3 --pretty /path/to/large/file
+```
