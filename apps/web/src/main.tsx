@@ -211,22 +211,89 @@ function EmptyCard() {
 }
 
 function UsbInventory({ devices }: { devices: DiagnosticDevice[] }) {
-  const sortedDevices = useMemo(
-    () => [...devices].sort((a, b) => sortSpeed(b) - sortSpeed(a) || a.id.localeCompare(b.id)),
-    [devices],
-  );
+  const groups = useMemo(() => groupUsbDevices(devices), [devices]);
 
   return (
     <section className="card">
       <p className="eyebrow">USB inventory</p>
       <h2>What is plugged into the USB tree</h2>
-      <div className="usbGrid">
-        {sortedDevices.map((device) => (
-          <UsbDeviceTile key={device.id} device={device} />
-        ))}
-      </div>
+      <p className="muted inventoryIntro">
+        Linkmetry now separates likely user-facing devices from background hubs/controllers so the useful signal is easier to see.
+      </p>
+
+      <InventoryGroup title="Likely important" description="Storage, audio/video, network, and high-speed attached devices." devices={groups.important} empty="No standout user-facing devices detected." />
+      <InventoryGroup title="Peripherals" description="Keyboards, receivers, lighting controllers, and low-bandwidth USB devices." devices={groups.peripherals} empty="No low-bandwidth peripherals detected." />
+      <InventoryGroup title="Hubs & controllers" description="USB hubs, root buses, and controller paths that explain topology but are usually not the thing you care about first." devices={groups.infrastructure} empty="No hub/controller devices detected." collapsed />
     </section>
   );
+}
+
+function InventoryGroup({
+  title,
+  description,
+  devices,
+  empty,
+  collapsed = false,
+}: {
+  title: string;
+  description: string;
+  devices: DiagnosticDevice[];
+  empty: string;
+  collapsed?: boolean;
+}) {
+  const content = (
+    <>
+      <p className="muted groupDescription">{description}</p>
+      {devices.length > 0 ? (
+        <div className="usbGrid">
+          {devices.map((device) => <UsbDeviceTile key={device.id} device={device} />)}
+        </div>
+      ) : (
+        <p className="muted emptyGroup">{empty}</p>
+      )}
+    </>
+  );
+
+  if (collapsed) {
+    return (
+      <details className="inventoryGroup" open={devices.length <= 4}>
+        <summary>{title} <span>{devices.length}</span></summary>
+        {content}
+      </details>
+    );
+  }
+
+  return (
+    <div className="inventoryGroup">
+      <h3>{title} <span>{devices.length}</span></h3>
+      {content}
+    </div>
+  );
+}
+
+function groupUsbDevices(devices: DiagnosticDevice[]) {
+  const sorted = [...devices].sort((a, b) => sortSpeed(b) - sortSpeed(a) || a.id.localeCompare(b.id));
+  const important: DiagnosticDevice[] = [];
+  const peripherals: DiagnosticDevice[] = [];
+  const infrastructure: DiagnosticDevice[] = [];
+
+  for (const device of sorted) {
+    if (isInfrastructureDevice(device)) infrastructure.push(device);
+    else if (isImportantDevice(device)) important.push(device);
+    else peripherals.push(device);
+  }
+
+  return { important, peripherals, infrastructure };
+}
+
+function isInfrastructureDevice(device: DiagnosticDevice) {
+  const product = (device.product ?? "").toLowerCase();
+  return device.kind === "hub" || product.includes("host controller") || device.id.startsWith("usb");
+}
+
+function isImportantDevice(device: DiagnosticDevice) {
+  const highSpeed = (device.negotiated_speed?.mbps ?? 0) > 480;
+  return ["storage", "audio", "video", "network"].includes(device.kind) || highSpeed;
 }
 
 function UsbDeviceTile({ device }: { device: DiagnosticDevice }) {

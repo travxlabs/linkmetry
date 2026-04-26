@@ -91,3 +91,17 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 @media (max-width: 780px) {
   .benchmarkControls, .benchmarkStats { grid-template-columns: 1fr; }
 }
+
+.inventoryIntro { margin-bottom: 22px; }
+.inventoryGroup { margin-top: 24px; }
+.inventoryGroup h3,
+.inventoryGroup summary { color: #edf5ff; font-size: 1.05rem; font-weight: 850; letter-spacing: -0.02em; }
+.inventoryGroup h3 { margin: 0 0 6px; }
+.inventoryGroup h3 span,
+.inventoryGroup summary span { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; margin-left: 8px; padding: 3px 8px; border-radius: 999px; color: #bfdbfe; background: rgba(14, 165, 233, 0.12); font-size: 0.78rem; }
+.inventoryGroup summary { cursor: pointer; list-style: none; }
+.inventoryGroup summary::-webkit-details-marker { display: none; }
+.inventoryGroup summary::before { content: "▸"; display: inline-block; margin-right: 8px; color: #7dd3fc; transition: transform 0.16s ease; }
+.inventoryGroup[open] summary::before { transform: rotate(90deg); }
+.groupDescription { margin-bottom: 14px; }
+.emptyGroup { margin: 12px 0 0; color: #7d8da3; }
