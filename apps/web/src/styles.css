@@ -176,3 +176,9 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .actionGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
 .pathPanel { display: grid; gap: 16px; }
 @media (max-width: 780px) { .actionPanelHeader { flex-direction: column; } .actionGrid { grid-template-columns: 1fr; } }
+.deviceActions button.active { color: #05111f; background: linear-gradient(135deg, #7dd3fc, #a7f3d0); border-color: transparent; }
+.inlineActionPanel { margin-top: 12px; border: 1px solid rgba(125, 211, 252, 0.2); border-radius: 16px; padding: 14px; background: rgba(2, 6, 23, 0.5); }
+.inlineActionPanel h2 { font-size: 1.05rem; margin-bottom: 4px; }
+.inlineActionPanel .actionPanelHeader { margin-bottom: 12px; }
+.inlineActionPanel .actionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 640px) { .inlineActionPanel .actionGrid { grid-template-columns: 1fr; } }

@@ -186,8 +186,7 @@ function App() {
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
-      {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} onAction={setSelectedAction} /> : null}
-      {selectedAction && selectedDevice ? <DeviceActionPanel action={selectedAction.action} device={selectedDevice} storageDevice={selectedStorage} usbDevices={usbDevices} onClose={() => setSelectedAction(null)} /> : null}
+      {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
@@ -238,7 +237,7 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   );
 }
 
-function ConnectionMap({ devices, storageDevices, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; onAction: (action: SelectedDeviceAction) => void }) {
+function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
   const storageByUsbId = useMemo(() => new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device])), [storageDevices]);
   const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
@@ -264,7 +263,10 @@ function ConnectionMap({ devices, storageDevices, onAction }: { devices: Diagnos
                   <span>{kindLabel(device.kind)}</span>
                   <strong>{deviceName(device)}</strong>
                   <p>{device.negotiated_speed?.label ?? "Speed unavailable"} · path {device.topology_path ?? device.id}</p>
-                  <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} onAction={onAction} />
+                  <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
+                  {selectedAction?.deviceId === device.id ? (
+                    <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
+                  ) : null}
                 </div>
               )) : <p className="muted">No downstream devices visible on this path.</p>}
             </div>
@@ -275,7 +277,7 @@ function ConnectionMap({ devices, storageDevices, onAction }: { devices: Diagnos
   );
 }
 
-function DeviceActions({ device, storageDevice, onAction }: { device: DiagnosticDevice; storageDevice?: StorageDevice; onAction: (action: SelectedDeviceAction) => void }) {
+function DeviceActions({ device, storageDevice, selectedAction, onAction }: { device: DiagnosticDevice; storageDevice?: StorageDevice; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
   const actions = availableActions(storageDevice);
   return (
     <div className="deviceActions">
@@ -283,9 +285,10 @@ function DeviceActions({ device, storageDevice, onAction }: { device: Diagnostic
         <button
           key={action.label}
           type="button"
+          className={selectedAction?.deviceId === device.id && selectedAction.action === action.action ? "active" : ""}
           disabled={!action.enabled}
           title={action.reason ?? action.label}
-          onClick={() => action.enabled && handleDeviceAction(action.action, device.id, onAction)}
+          onClick={() => action.enabled && handleDeviceAction(action.action, device.id, selectedAction, onAction)}
         >
           {action.label}
         </button>
@@ -294,7 +297,11 @@ function DeviceActions({ device, storageDevice, onAction }: { device: Diagnostic
   );
 }
 
-function handleDeviceAction(action: DeviceAction, deviceId: string, onAction: (action: SelectedDeviceAction) => void) {
+function handleDeviceAction(action: DeviceAction, deviceId: string, selectedAction: SelectedDeviceAction | null, onAction: (action: SelectedDeviceAction | null) => void) {
+  if (selectedAction?.deviceId === deviceId && selectedAction.action === action) {
+    onAction(null);
+    return;
+  }
   onAction({ deviceId, action });
   if (action === "speed") {
     window.setTimeout(() => document.getElementById("external-drive-diagnostics")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -310,12 +317,12 @@ function availableActions(storageDevice?: StorageDevice): Array<{ label: string;
   ];
 }
 
-function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose }: { action: DeviceAction; device: DiagnosticDevice; storageDevice?: StorageDevice; usbDevices: DiagnosticDevice[]; onClose: () => void }) {
+function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose, compact = false }: { action: DeviceAction; device: DiagnosticDevice; storageDevice?: StorageDevice; usbDevices: DiagnosticDevice[]; onClose: () => void; compact?: boolean }) {
   const path = buildConnectionPath(device.id, usbDevices);
   const explanation = explainDevice(device, storageDevice, path);
 
   return (
-    <section className="card actionPanel">
+    <section className={compact ? "actionPanel inlineActionPanel" : "card actionPanel"}>
       <div className="actionPanelHeader">
         <div>
           <p className="eyebrow">{actionPanelTitle(action)}</p>
