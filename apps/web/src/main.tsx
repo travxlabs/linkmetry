@@ -239,6 +239,7 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
 
 function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
+  const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)), [devices]);
   const storageByUsbId = useMemo(() => new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device])), [storageDevices]);
   const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
 
@@ -246,33 +247,44 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
     <section className="card connectionMapCard">
       <p className="eyebrow">Control panel</p>
       <h2>Ports, paths, and connected devices</h2>
-      <p className="muted inventoryIntro">This is the main view: each visible USB path, what is attached to it, negotiated speed, and what Linkmetry can help with next.</p>
+      <p className="muted inventoryIntro">Ports and hubs are connection locations. Devices like lighting controllers, keyboards, drives, and audio gear are shown separately below.</p>
       <p className="muted evidenceNote">Connector shape such as USB-C will only appear when the OS exposes real evidence. Linkmetry will not guess.</p>
-      <div className="portGrid">
-        {map.map((port) => (
-          <article className="portCard" key={port.root.id}>
-            <div className="portHeader">
-              <div>
-                <span>{port.root.id}</span>
-                <strong>{deviceName(port.root)}</strong>
-              </div>
-              <em>{port.root.negotiated_speed?.generation ?? port.root.negotiated_speed?.label ?? "speed unknown"}</em>
-            </div>
-            <div className="portDevices">
-              {port.children.length > 0 ? port.children.map((device) => (
-                <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
-                  <span>{kindLabel(device.kind)}</span>
-                  <strong>{deviceName(device)}</strong>
-                  <p><SpeedBadge speed={device.negotiated_speed} /> · path {device.topology_path ?? device.id}</p>
-                  <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
-                  {selectedAction?.deviceId === device.id ? (
-                    <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
-                  ) : null}
+
+      <div className="connectionSplit">
+        <div>
+          <h3>Ports & paths</h3>
+          <div className="portGrid compactPorts">
+            {map.map((port) => (
+              <article className="portCard" key={port.root.id}>
+                <div className="portHeader">
+                  <div>
+                    <span>{port.root.id}</span>
+                    <strong>{port.root.id.startsWith("usb") ? `USB bus ${port.root.id.replace("usb", "")}` : deviceName(port.root)}</strong>
+                  </div>
+                  <em>{port.root.negotiated_speed?.generation ?? port.root.negotiated_speed?.label ?? "speed unknown"}</em>
                 </div>
-              )) : <p className="muted">No downstream devices visible on this path.</p>}
-            </div>
-          </article>
-        ))}
+                <p className="muted portCount">{port.children.length} connected device{port.children.length === 1 ? "" : "s"} on this path</p>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h3>Connected devices</h3>
+          <div className="connectedDeviceList">
+            {attachedDevices.map((device) => (
+              <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
+                <span>{kindLabel(device.kind)}</span>
+                <strong>{deviceName(device)}</strong>
+                <p><SpeedBadge speed={device.negotiated_speed} /> connected on {device.topology_path ?? device.id}</p>
+                <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
+                {selectedAction?.deviceId === device.id ? (
+                  <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -532,6 +544,10 @@ function isDownstreamOf(deviceId: string, rootId: string) {
 
 function visiblePortCount(devices: DiagnosticDevice[]) {
   return buildConnectionMap(devices).length;
+}
+
+function isPortOrPath(device: DiagnosticDevice) {
+  return device.id.startsWith("usb") || device.kind === "hub";
 }
 
 function groupUsbDevices(devices: DiagnosticDevice[]) {
