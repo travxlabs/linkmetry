@@ -182,7 +182,7 @@ function App() {
 
       {storageCards.map((card, index) => (
         <React.Fragment key={storageDevices[index]?.dev_path ?? card.subtitle ?? card.title}>
-          <DeviceSummary card={card} device={storageDevices[index]} />
+          <DeviceSummary card={card} device={storageDevices[index]} usbDevices={usbDevices} />
           <EvidencePanel device={storageDevices[index]} />
         </React.Fragment>
       ))}
@@ -319,8 +319,9 @@ function UsbDeviceTile({ device }: { device: DiagnosticDevice }) {
   );
 }
 
-function DeviceSummary({ card, device }: { card: DeviceCard; device?: StorageDevice }) {
+function DeviceSummary({ card, device, usbDevices }: { card: DeviceCard; device?: StorageDevice; usbDevices: DiagnosticDevice[] }) {
   const verdict = card.primary_verdict;
+  const connectionPath = device?.usb_device_id ? buildConnectionPath(device.usb_device_id, usbDevices) : [];
 
   return (
     <section className="card deviceCard">
@@ -360,8 +361,51 @@ function DeviceSummary({ card, device }: { card: DeviceCard; device?: StorageDev
         ) : null}
       </dl>
 
+      {device ? <ConnectionPathPanel device={device} path={connectionPath} /> : null}
       {device ? <BenchmarkControl device={device} /> : null}
     </section>
+  );
+}
+
+function ConnectionPathPanel({ device, path }: { device: StorageDevice; path: DiagnosticDevice[] }) {
+  if (!device.usb_device_id) return null;
+
+  const bottleneck = findPathBottleneck(path);
+
+  return (
+    <div className="connectionPathBox">
+      <p className="eyebrow">Connection path</p>
+      <h3>{path.length > 0 ? describePath(path) : `USB path ${device.usb_device_id}`}</h3>
+      <p className="muted">
+        {path.length > 0
+          ? "This is the current upstream USB chain Linux exposes for this storage device."
+          : "Linux exposed a USB device id, but Linkmetry could not reconstruct the full upstream chain yet."}
+      </p>
+      {bottleneck ? (
+        <div className="pathInsight warningInsight">
+          <strong>Potential path bottleneck</strong>
+          <span>{bottleneck}</span>
+        </div>
+      ) : (
+        <div className="pathInsight">
+          <strong>No obvious USB-speed bottleneck in this path</strong>
+          <span>Every known upstream USB hop is at least as fast as the device path Linkmetry can see.</span>
+        </div>
+      )}
+      {path.length > 0 ? (
+        <ol className="pathSteps">
+          {path.map((step, index) => (
+            <li key={step.id}>
+              <span className="pathIndex">{index + 1}</span>
+              <div>
+                <strong>{deviceName(step)}</strong>
+                <p>{kindLabel(step.kind)} · {step.negotiated_speed?.label ?? "speed unavailable"} · {step.topology_path ?? step.id}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
   );
 }
 
@@ -485,6 +529,53 @@ function EvidenceItem({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function buildConnectionPath(usbDeviceId: string, devices: DiagnosticDevice[]) {
+  const byId = new Map(devices.map((device) => [device.id, device]));
+  const ids = parentChainIds(usbDeviceId);
+  return ids.map((id) => byId.get(id)).filter((device): device is DiagnosticDevice => Boolean(device));
+}
+
+function parentChainIds(id: string) {
+  const ids: string[] = [];
+  const rootMatch = id.match(/^(\d+)-/);
+  if (rootMatch) ids.push(`usb${rootMatch[1]}`);
+
+  let current = id;
+  const parts = current.split(".");
+  while (parts.length > 1) {
+    ids.push(parts.join("."));
+    parts.pop();
+  }
+  ids.push(parts[0]);
+  if (!ids.includes(id)) ids.push(id);
+  return Array.from(new Set(ids));
+}
+
+function describePath(path: DiagnosticDevice[]) {
+  const endpoint = path[path.length - 1];
+  const upstreamHub = [...path].reverse().find((device) => device.kind === "hub" && device.id !== endpoint.id);
+  if (upstreamHub) return `${deviceName(endpoint)} downstream of ${deviceName(upstreamHub)}`;
+  return `${deviceName(endpoint)} direct USB path`;
+}
+
+function findPathBottleneck(path: DiagnosticDevice[]) {
+  const endpoint = path[path.length - 1];
+  const endpointSpeed = endpoint?.negotiated_speed?.mbps;
+  if (!endpointSpeed) return null;
+
+  const slower = path.slice(0, -1).find((device) => {
+    const speed = device.negotiated_speed?.mbps;
+    return speed && speed < endpointSpeed;
+  });
+
+  if (!slower) return null;
+  return `${deviceName(slower)} reports ${slower.negotiated_speed?.label}, below the endpoint speed of ${endpoint.negotiated_speed?.label}.`;
+}
+
+function deviceName(device: DiagnosticDevice) {
+  return device.product ?? device.manufacturer ?? device.id;
 }
 
 function sortSpeed(device: DiagnosticDevice) {
