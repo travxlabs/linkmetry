@@ -233,6 +233,7 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
 
 function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[] }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
+  const storageByUsbId = useMemo(() => new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device])), [storageDevices]);
   const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
 
   return (
@@ -256,6 +257,7 @@ function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[
                   <span>{kindLabel(device.kind)}</span>
                   <strong>{deviceName(device)}</strong>
                   <p>{device.negotiated_speed?.label ?? "Speed unavailable"} · path {device.topology_path ?? device.id}</p>
+                  <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} />
                 </div>
               )) : <p className="muted">No downstream devices visible on this path.</p>}
             </div>
@@ -264,6 +266,28 @@ function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[
       </div>
     </section>
   );
+}
+
+function DeviceActions({ device, storageDevice }: { device: DiagnosticDevice; storageDevice?: StorageDevice }) {
+  const actions = availableActions(device, storageDevice);
+  return (
+    <div className="deviceActions">
+      {actions.map((action) => (
+        <button key={action.label} type="button" disabled={!action.enabled} title={action.reason ?? action.label}>
+          {action.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function availableActions(device: DiagnosticDevice, storageDevice?: StorageDevice) {
+  return [
+    { label: "Explain", enabled: false, reason: "Coming next: plain-English explanation for this device." },
+    { label: "Details", enabled: true },
+    { label: "Check path", enabled: true },
+    { label: "Speed test", enabled: Boolean(storageDevice?.transport === "usb"), reason: storageDevice ? undefined : "Speed test is currently available for external drives only." },
+  ];
 }
 
 function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
