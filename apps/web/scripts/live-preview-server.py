@@ -53,10 +53,15 @@ class Handler(BaseHTTPRequestHandler):
             target = query.get('target', [''])[0]
             iterations = query.get('iterations', ['3'])[0]
             if not target:
-                return self.json({'error': 'target query parameter is required'}, status=400)
+                return self.json({'error': 'Choose a readable file path first.'}, status=400)
+            if target.endswith('/'):
+                return self.json({'error': 'Choose a specific large file, not a folder/mount point.'}, status=400)
             payload = self.run_cli_args(['diagnose-storage', '--iterations', iterations, target], timeout=180)
             payload['generated_at'] = self.date_time_string()
             return self.json(payload)
+        except subprocess.CalledProcessError as exc:
+            message = (exc.stderr or '').strip() or 'Benchmark command failed.'
+            return self.json({'error': message}, status=500)
         except Exception as exc:
             return self.json({'error': str(exc)}, status=500)
 

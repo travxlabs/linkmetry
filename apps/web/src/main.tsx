@@ -410,23 +410,31 @@ function ConnectionPathPanel({ device, path }: { device: StorageDevice; path: Di
 }
 
 function BenchmarkControl({ device }: { device: StorageDevice }) {
-  const suggestedTarget = device.mountpoints[0] ? `${device.mountpoints[0]}/path/to/large-file` : "/path/to/large-file";
+  const benchmarkMountpoints = benchmarkableMountpoints(device);
+  const isUsbStorage = device.transport === "usb";
+  const suggestedTarget = benchmarkMountpoints[0] ? `${benchmarkMountpoints[0]}/path/to/large-file` : "/path/to/large-file";
   const [target, setTarget] = useState("");
   const [status, setStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [result, setResult] = useState<StorageDiagnosisReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function runBenchmark() {
-    if (!target.trim()) {
+    const normalizedTarget = target.trim();
+    if (!normalizedTarget) {
       setStatus("error");
       setError("Choose a readable file path on this drive first.");
+      return;
+    }
+    if (normalizedTarget.endsWith("/")) {
+      setStatus("error");
+      setError("Choose a specific large file, not a folder/mount point.");
       return;
     }
 
     setStatus("running");
     setError(null);
     try {
-      const response = await fetch(`/api/benchmark?iterations=3&target=${encodeURIComponent(target.trim())}`, { cache: "no-store" });
+      const response = await fetch(`/api/benchmark?iterations=3&target=${encodeURIComponent(normalizedTarget)}`, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? `Benchmark failed with HTTP ${response.status}`);
       setResult(payload);
@@ -444,23 +452,29 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
         <h3>Test real-world read speed</h3>
         <p className="muted">Safe read-only test. Pick a large existing file on this storage path; Linkmetry does not write to the drive.</p>
       </div>
-      <div className="benchmarkControls">
-        <input
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          placeholder={suggestedTarget}
-        />
-        <button className="scanButton small" onClick={runBenchmark} disabled={status === "running"}>
-          {status === "running" ? "Testing…" : "Run read test"}
-        </button>
-      </div>
-      {device.mountpoints.length > 0 ? (
-        <div className="mountSuggestions">
-          {device.mountpoints.map((mountpoint) => (
-            <button key={mountpoint} type="button" onClick={() => setTarget(`${mountpoint}/`)}>{mountpoint}</button>
-          ))}
-        </div>
-      ) : null}
+      {isUsbStorage ? (
+        <>
+          <div className="benchmarkControls">
+            <input
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+              placeholder={suggestedTarget}
+            />
+            <button className="scanButton small" onClick={runBenchmark} disabled={status === "running"}>
+              {status === "running" ? "Testing…" : "Run read test"}
+            </button>
+          </div>
+          {benchmarkMountpoints.length > 0 ? (
+            <div className="mountSuggestions">
+              {benchmarkMountpoints.map((mountpoint) => (
+                <button key={mountpoint} type="button" onClick={() => setTarget(`${mountpoint}/`)}>{mountpoint}</button>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <p className="muted benchmarkDisabled">Read benchmark is hidden for internal/system storage in this prototype. Linkmetry is focusing on external USB storage first.</p>
+      )}
       {error ? <p className="errorText">{error}</p> : null}
       {result ? <BenchmarkResultPanel result={result} /> : null}
     </div>
@@ -583,6 +597,15 @@ function findPathBottleneck(path: DiagnosticDevice[]) {
 
 function deviceName(device: DiagnosticDevice) {
   return device.product ?? device.manufacturer ?? device.id;
+}
+
+function benchmarkableMountpoints(device: StorageDevice) {
+  const blocked = new Set(["/", "/boot", "/boot/efi", "/etc/hostname", "/etc/hosts", "/etc/resolv.conf"]);
+  return device.mountpoints.filter((mountpoint) => {
+    if (blocked.has(mountpoint)) return false;
+    if (mountpoint.startsWith("/app/")) return false;
+    return mountpoint.startsWith("/mnt/") || mountpoint.startsWith("/home/");
+  });
 }
 
 function sortSpeed(device: DiagnosticDevice) {
