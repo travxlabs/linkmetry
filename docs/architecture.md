@@ -82,4 +82,17 @@ Implementation implication:
 - Hide raw USB/sysfs/topology details behind “technical evidence” or lower-priority sections.
 - Avoid making users understand mount paths, device IDs, USB class codes, or Linux internals.
 - Advanced details are still useful, but they should support the answer — not be the answer.
+## 2026-04-26 Product Focus: Port Map First
+
+Brad clarified that external drive diagnostics can exist, but should not be the main focus.
+
+Main product focus:
+- show what devices are connected where
+- explain the port/path/hub topology in normal-person language
+- show negotiated speed/capability for each visible connection path
+- surface likely bottlenecks across the connection path
+
+Secondary workflow:
+- external drive diagnostics and read benchmarking
+- useful as a detail page/tool for storage devices, not the primary home screen
 

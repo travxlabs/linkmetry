@@ -274,9 +274,9 @@ function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCa
   return (
     <section className="deviceCheckSection">
       <div className="sectionIntro">
-        <p className="eyebrow">Device detail</p>
-        <h2>External drive details</h2>
-        <p className="muted">Drives get extra tools like speed testing. They are details under the broader connection map, not the whole product.</p>
+        <p className="eyebrow">Secondary tool</p>
+        <h2>External drive diagnostics</h2>
+        <p className="muted">Extra tools for storage devices, like speed testing. This is a secondary diagnostic workflow under the main connection map.</p>
       </div>
       {externalIndexes.length > 0 ? (
         externalIndexes.map(({ device, index }) => (
