@@ -50,7 +50,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://trav-dev:8090/` (or `http://192.168.4.67:8090/`) to test the current static UI preview. Port 8080 is reserved for Open WebUI on trav-dev.
+Open `http://trav-dev:9000/` (or `http://192.168.4.67:9000/`) to test the current static UI preview. Port 8080 is reserved for Open WebUI on trav-dev.
 
 ## Product rule
 
