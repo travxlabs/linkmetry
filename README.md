@@ -50,7 +50,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://trav-dev:3000/` (or `http://192.168.4.67:3000/`) to test the device card, benchmark panel, and evidence section.
+Open `http://trav-dev:8090/` (or `http://192.168.4.67:8090/`) to test the current static UI preview. Port 8080 is reserved for Open WebUI on trav-dev.
 
 ## Product rule
 
