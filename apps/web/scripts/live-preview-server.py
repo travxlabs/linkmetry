@@ -12,6 +12,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split('?', 1)[0] == '/api/health':
             return self.json({'ok': True})
+        if self.path.split('?', 1)[0] == '/api/scan':
+            return self.scan()
         if self.path.split('?', 1)[0] == '/api/storage-cards':
             return self.storage_cards()
         return self.static()
@@ -19,14 +21,33 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         return self.static(head=True)
 
+    def scan(self):
+        try:
+            usb = self.run_cli('inspect')
+            storage = self.run_cli('storage-cards')
+            return self.json({
+                'generated_at': self.date_time_string(),
+                'platform': storage.get('platform') or usb.get('platform'),
+                'usb': {'devices': usb.get('devices', [])},
+                'storage': {
+                    'devices': storage.get('devices', []),
+                    'cards': storage.get('cards', []),
+                },
+            })
+        except Exception as exc:
+            return self.json({'error': str(exc)}, status=500)
+
     def storage_cards(self):
         try:
-            result = subprocess.run([CLI, 'storage-cards'], check=True, capture_output=True, text=True, timeout=30)
-            payload = json.loads(result.stdout)
+            payload = self.run_cli('storage-cards')
             payload['generated_at'] = self.date_time_string()
             return self.json(payload)
         except Exception as exc:
             return self.json({'error': str(exc)}, status=500)
+
+    def run_cli(self, command):
+        result = subprocess.run([CLI, command], check=True, capture_output=True, text=True, timeout=30)
+        return json.loads(result.stdout)
 
     def static(self, head=False):
         raw = self.path.split('?', 1)[0]

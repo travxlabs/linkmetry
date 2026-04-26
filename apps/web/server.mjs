@@ -19,6 +19,16 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
+    if (url.pathname === "/api/scan") {
+      const [usb, storage] = await Promise.all([runCli(["inspect"]), runCli(["storage-cards"])]);
+      return sendJson(res, {
+        generated_at: new Date().toISOString(),
+        platform: storage.platform ?? usb.platform,
+        usb: { devices: usb.devices ?? [] },
+        storage: { devices: storage.devices ?? [], cards: storage.cards ?? [] },
+      });
+    }
+
     if (url.pathname === "/api/storage-cards") {
       const payload = await runCli(["storage-cards"]);
       return sendJson(res, {
