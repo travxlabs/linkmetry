@@ -72,3 +72,22 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 @media (max-width: 640px) {
   .usbGrid { grid-template-columns: 1fr; }
 }
+
+.benchmarkBox { margin-top: 22px; border-top: 1px solid rgba(148, 163, 184, 0.16); padding-top: 22px; }
+.benchmarkBox h3 { margin: 0 0 8px; font-size: 1.05rem; color: #edf5ff; }
+.benchmarkControls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; margin-top: 16px; }
+.benchmarkControls input { width: 100%; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; padding: 13px 16px; color: #e5edf7; background: rgba(2, 6, 23, 0.52); outline: none; }
+.benchmarkControls input:focus { border-color: rgba(125, 211, 252, 0.62); box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.08); }
+.scanButton.small { padding: 12px 16px; box-shadow: none; white-space: nowrap; }
+.scanButton:disabled { cursor: wait; opacity: 0.7; }
+.benchmarkResult { margin-top: 18px; display: grid; gap: 16px; }
+.compactVerdict { padding: 16px; }
+.benchmarkStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.benchmarkStats div { border-radius: 16px; padding: 14px; background: rgba(2, 6, 23, 0.42); }
+.benchmarkStats span { display: block; color: #7d8da3; font-size: 0.76rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+.benchmarkStats strong { display: block; margin-top: 5px; color: #e5edf7; }
+.compactRuns { gap: 12px; }
+
+@media (max-width: 780px) {
+  .benchmarkControls, .benchmarkStats { grid-template-columns: 1fr; }
+}

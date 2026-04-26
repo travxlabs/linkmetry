@@ -3,7 +3,7 @@ import mimetypes
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 DIST = Path('/app/dist').resolve()
 CLI = '/app/linkmetry-cli'
@@ -16,6 +16,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.scan()
         if self.path.split('?', 1)[0] == '/api/storage-cards':
             return self.storage_cards()
+        if self.path.split('?', 1)[0] == '/api/benchmark':
+            return self.benchmark()
         return self.static()
 
     def do_HEAD(self):
@@ -45,8 +47,24 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             return self.json({'error': str(exc)}, status=500)
 
+    def benchmark(self):
+        try:
+            query = parse_qs(urlparse(self.path).query)
+            target = query.get('target', [''])[0]
+            iterations = query.get('iterations', ['3'])[0]
+            if not target:
+                return self.json({'error': 'target query parameter is required'}, status=400)
+            payload = self.run_cli_args(['diagnose-storage', '--iterations', iterations, target], timeout=180)
+            payload['generated_at'] = self.date_time_string()
+            return self.json(payload)
+        except Exception as exc:
+            return self.json({'error': str(exc)}, status=500)
+
     def run_cli(self, command):
-        result = subprocess.run([CLI, command], check=True, capture_output=True, text=True, timeout=30)
+        return self.run_cli_args([command])
+
+    def run_cli_args(self, args, timeout=30):
+        result = subprocess.run([CLI, *args], check=True, capture_output=True, text=True, timeout=timeout)
         return json.loads(result.stdout)
 
     def static(self, head=False):

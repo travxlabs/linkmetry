@@ -37,6 +37,17 @@ const server = createServer(async (req, res) => {
       });
     }
 
+    if (url.pathname === "/api/benchmark") {
+      const target = url.searchParams.get("target");
+      const iterations = url.searchParams.get("iterations") ?? "3";
+      if (!target) return sendJson(res, { error: "target query parameter is required" }, 400);
+      const payload = await runCli(["diagnose-storage", "--iterations", iterations, target]);
+      return sendJson(res, {
+        generated_at: new Date().toISOString(),
+        ...payload,
+      });
+    }
+
     if (url.pathname === "/api/health") {
       return sendJson(res, { ok: true });
     }

@@ -26,6 +26,32 @@ type DeviceCard = {
 type Evidence = { source: string; key: string; value: string };
 type LinkSpeed = { raw: string; mbps?: number; label: string };
 
+type BenchmarkRun = {
+  bytes_read: number;
+  elapsed_seconds: number;
+  mib_per_second: number;
+};
+
+type BenchmarkResult = {
+  kind: string;
+  target: string;
+  bytes: number;
+  iterations: number;
+  runs: BenchmarkRun[];
+  average_mib_per_second: number;
+  best_mib_per_second: number;
+  caveats: string[];
+};
+
+type StorageDiagnosisReport = {
+  generated_at: string;
+  target: string;
+  storage: StorageDevice;
+  card: DeviceCard;
+  benchmark: BenchmarkResult;
+  verdicts: Verdict[];
+};
+
 type DiagnosticDevice = {
   id: string;
   kind: string;
@@ -266,7 +292,101 @@ function DeviceSummary({ card, device }: { card: DeviceCard; device?: StorageDev
           </div>
         ) : null}
       </dl>
+
+      {device ? <BenchmarkControl device={device} /> : null}
     </section>
+  );
+}
+
+function BenchmarkControl({ device }: { device: StorageDevice }) {
+  const defaultTarget = device.mountpoints[0] ?? "";
+  const [target, setTarget] = useState(defaultTarget);
+  const [status, setStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [result, setResult] = useState<StorageDiagnosisReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runBenchmark() {
+    if (!target.trim()) {
+      setStatus("error");
+      setError("Choose a readable file path on this drive first.");
+      return;
+    }
+
+    setStatus("running");
+    setError(null);
+    try {
+      const response = await fetch(`/api/benchmark?iterations=3&target=${encodeURIComponent(target.trim())}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? `Benchmark failed with HTTP ${response.status}`);
+      setResult(payload);
+      setStatus("done");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="benchmarkBox">
+      <div>
+        <p className="eyebrow">Read benchmark</p>
+        <h3>Test real-world read speed</h3>
+        <p className="muted">Safe read-only test. Pick a large existing file on this storage path; Linkmetry does not write to the drive.</p>
+      </div>
+      <div className="benchmarkControls">
+        <input
+          value={target}
+          onChange={(event) => setTarget(event.target.value)}
+          placeholder={defaultTarget ? `${defaultTarget}/path/to/large-file` : "/path/to/large-file"}
+        />
+        <button className="scanButton small" onClick={runBenchmark} disabled={status === "running"}>
+          {status === "running" ? "Testing…" : "Run read test"}
+        </button>
+      </div>
+      {error ? <p className="errorText">{error}</p> : null}
+      {result ? <BenchmarkResultPanel result={result} /> : null}
+    </div>
+  );
+}
+
+function BenchmarkResultPanel({ result }: { result: StorageDiagnosisReport }) {
+  const verdict = result.verdicts[0];
+  const max = Math.max(...result.benchmark.runs.map((run) => run.mib_per_second), 1);
+
+  return (
+    <div className="benchmarkResult">
+      {verdict ? (
+        <div className="verdictBox compactVerdict">
+          <strong>{verdict.title}</strong>
+          <p>{verdict.message}</p>
+        </div>
+      ) : null}
+      <div className="benchmarkStats">
+        <div>
+          <span>Average</span>
+          <strong>{result.benchmark.average_mib_per_second.toFixed(0)} MiB/s</strong>
+        </div>
+        <div>
+          <span>Best</span>
+          <strong>{result.benchmark.best_mib_per_second.toFixed(0)} MiB/s</strong>
+        </div>
+        <div>
+          <span>File</span>
+          <strong>{formatBytes(result.benchmark.bytes)}</strong>
+        </div>
+      </div>
+      <div className="runs compactRuns">
+        {result.benchmark.runs.map((run, index) => (
+          <div className="run" key={index}>
+            <div className="runLabel">
+              <span>Run {index + 1}</span>
+              <strong>{run.mib_per_second.toFixed(0)} MiB/s</strong>
+            </div>
+            <div className="barTrack"><span style={{ width: `${(run.mib_per_second / max) * 100}%` }} /></div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -306,6 +426,17 @@ function sortSpeed(device: DiagnosticDevice) {
 
 function kindLabel(kind: string) {
   return kind.replaceAll("-", " ");
+}
+
+function formatBytes(bytes: number) {
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 function scanStatusLabel(status: ScanState["status"]) {
