@@ -247,6 +247,7 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
       <p className="eyebrow">Control panel</p>
       <h2>Ports, paths, and connected devices</h2>
       <p className="muted inventoryIntro">This is the main view: each visible USB path, what is attached to it, negotiated speed, and what Linkmetry can help with next.</p>
+      <p className="muted evidenceNote">Connector shape such as USB-C will only appear when the OS exposes real evidence. Linkmetry will not guess.</p>
       <div className="portGrid">
         {map.map((port) => (
           <article className="portCard" key={port.root.id}>
@@ -262,7 +263,7 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
                 <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
                   <span>{kindLabel(device.kind)}</span>
                   <strong>{deviceName(device)}</strong>
-                  <p><SpeedBadge speed={device.negotiated_speed} /> <ConnectorBadge /> · path {device.topology_path ?? device.id}</p>
+                  <p><SpeedBadge speed={device.negotiated_speed} /> · path {device.topology_path ?? device.id}</p>
                   <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
                   {selectedAction?.deviceId === device.id ? (
                     <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
@@ -281,10 +282,6 @@ function SpeedBadge({ speed }: { speed?: LinkSpeed }) {
   const label = speed?.generation ?? speed?.label ?? "Unknown speed";
   const tone = speed?.is_usb3_or_better ? "usb3" : speed?.mbps && speed.mbps <= 480 ? "usb2" : "unknown";
   return <span className={`speedBadge ${tone}`}>{label}</span>;
-}
-
-function ConnectorBadge() {
-  return <span className="connectorBadge">Connector: unknown</span>;
 }
 
 function DeviceActions({ device, storageDevice, selectedAction, onAction }: { device: DiagnosticDevice; storageDevice?: StorageDevice; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
@@ -337,7 +334,7 @@ function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose,
         <div>
           <p className="eyebrow">{actionPanelTitle(action)}</p>
           <h2>{deviceName(device)}</h2>
-          <p className="muted">{kindLabel(device.kind)} · {device.negotiated_speed?.generation ?? device.negotiated_speed?.label ?? "speed unknown"} · connector unknown</p>
+          <p className="muted">{kindLabel(device.kind)} · {device.negotiated_speed?.generation ?? device.negotiated_speed?.label ?? "speed unknown"}</p>
         </div>
         <button type="button" className="plainButton" onClick={onClose}>Close</button>
       </div>
@@ -348,7 +345,6 @@ function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose,
         <div className="actionGrid">
           <FriendlyFact label="Device type" value={kindLabel(device.kind)} />
           <FriendlyFact label="USB generation" value={device.negotiated_speed?.generation ?? "Unknown"} />
-          <FriendlyFact label="Connector" value="Unknown from OS" />
           <FriendlyFact label="Manufacturer" value={device.manufacturer ?? "Unknown"} />
           <FriendlyFact label="Product" value={device.product ?? "Unknown"} />
           <FriendlyFact label="USB path" value={device.topology_path ?? device.id} />

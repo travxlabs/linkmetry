@@ -120,5 +120,5 @@ Current Linux finding on trav-dev:
 UX rule:
 - show USB generation prominently from negotiated speed
 - do not claim USB-C unless the OS exposes connector/Type-C evidence
-- if connector shape is unknown, say `Connector: unknown` instead of guessing
+- only show connector shape when there is real OS evidence; if unknown, omit per-device connector labels and avoid guessing
 
