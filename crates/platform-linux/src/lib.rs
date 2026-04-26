@@ -319,7 +319,10 @@ fn extract_usb_device_id(path: &Path) -> Option<String> {
 }
 
 fn read_mountpoints() -> HashMap<String, Vec<String>> {
-    let Ok(contents) = fs::read_to_string("/proc/mounts") else {
+    let mounts_path = std::env::var_os("LINKMETRY_PROC_MOUNTS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("/proc/mounts"));
+    let Ok(contents) = fs::read_to_string(&mounts_path) else {
         return HashMap::new();
     };
 

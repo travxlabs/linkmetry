@@ -410,8 +410,8 @@ function ConnectionPathPanel({ device, path }: { device: StorageDevice; path: Di
 }
 
 function BenchmarkControl({ device }: { device: StorageDevice }) {
-  const defaultTarget = device.mountpoints[0] ?? "";
-  const [target, setTarget] = useState(defaultTarget);
+  const suggestedTarget = device.mountpoints[0] ? `${device.mountpoints[0]}/path/to/large-file` : "/path/to/large-file";
+  const [target, setTarget] = useState("");
   const [status, setStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [result, setResult] = useState<StorageDiagnosisReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -448,12 +448,19 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
         <input
           value={target}
           onChange={(event) => setTarget(event.target.value)}
-          placeholder={defaultTarget ? `${defaultTarget}/path/to/large-file` : "/path/to/large-file"}
+          placeholder={suggestedTarget}
         />
         <button className="scanButton small" onClick={runBenchmark} disabled={status === "running"}>
           {status === "running" ? "Testing…" : "Run read test"}
         </button>
       </div>
+      {device.mountpoints.length > 0 ? (
+        <div className="mountSuggestions">
+          {device.mountpoints.map((mountpoint) => (
+            <button key={mountpoint} type="button" onClick={() => setTarget(`${mountpoint}/`)}>{mountpoint}</button>
+          ))}
+        </div>
+      ) : null}
       {error ? <p className="errorText">{error}</p> : null}
       {result ? <BenchmarkResultPanel result={result} /> : null}
     </div>
