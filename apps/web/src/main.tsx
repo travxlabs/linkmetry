@@ -108,8 +108,12 @@ type ScanState =
   | { status: "ready"; report: LiveScanReport; error?: undefined }
   | { status: "error"; report?: LiveScanReport; error: string };
 
+type DeviceAction = "explain" | "details" | "path" | "speed";
+type SelectedDeviceAction = { deviceId: string; action: DeviceAction };
+
 function App() {
   const [scan, setScan] = useState<ScanState>({ status: "loading" });
+  const [selectedAction, setSelectedAction] = useState<SelectedDeviceAction | null>(null);
 
   async function runScan() {
     setScan((current) => ({ status: "loading", report: current.report }));
@@ -139,6 +143,8 @@ function App() {
   const highSpeedUsbCount = usbDevices.filter((device) => (device.negotiated_speed?.mbps ?? 0) > 480).length;
 
   const summary = report ? buildFriendlySummary(usbDevices, storageDevices) : null;
+  const selectedDevice = selectedAction ? usbDevices.find((device) => device.id === selectedAction.deviceId) : undefined;
+  const selectedStorage = selectedDevice ? storageDevices.find((device) => device.usb_device_id === selectedDevice.id) : undefined;
 
   return (
     <main className="shell">
@@ -180,7 +186,8 @@ function App() {
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
-      {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} /> : null}
+      {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} onAction={setSelectedAction} /> : null}
+      {selectedAction && selectedDevice ? <DeviceActionPanel action={selectedAction.action} device={selectedDevice} storageDevice={selectedStorage} usbDevices={usbDevices} onClose={() => setSelectedAction(null)} /> : null}
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
@@ -231,7 +238,7 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   );
 }
 
-function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[] }) {
+function ConnectionMap({ devices, storageDevices, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; onAction: (action: SelectedDeviceAction) => void }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
   const storageByUsbId = useMemo(() => new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device])), [storageDevices]);
   const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
@@ -257,7 +264,7 @@ function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[
                   <span>{kindLabel(device.kind)}</span>
                   <strong>{deviceName(device)}</strong>
                   <p>{device.negotiated_speed?.label ?? "Speed unavailable"} · path {device.topology_path ?? device.id}</p>
-                  <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} />
+                  <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} onAction={onAction} />
                 </div>
               )) : <p className="muted">No downstream devices visible on this path.</p>}
             </div>
@@ -268,12 +275,18 @@ function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[
   );
 }
 
-function DeviceActions({ device, storageDevice }: { device: DiagnosticDevice; storageDevice?: StorageDevice }) {
-  const actions = availableActions(device, storageDevice);
+function DeviceActions({ device, storageDevice, onAction }: { device: DiagnosticDevice; storageDevice?: StorageDevice; onAction: (action: SelectedDeviceAction) => void }) {
+  const actions = availableActions(storageDevice);
   return (
     <div className="deviceActions">
       {actions.map((action) => (
-        <button key={action.label} type="button" disabled={!action.enabled} title={action.reason ?? action.label}>
+        <button
+          key={action.label}
+          type="button"
+          disabled={!action.enabled}
+          title={action.reason ?? action.label}
+          onClick={() => action.enabled && handleDeviceAction(action.action, device.id, onAction)}
+        >
           {action.label}
         </button>
       ))}
@@ -281,13 +294,82 @@ function DeviceActions({ device, storageDevice }: { device: DiagnosticDevice; st
   );
 }
 
-function availableActions(device: DiagnosticDevice, storageDevice?: StorageDevice) {
+function handleDeviceAction(action: DeviceAction, deviceId: string, onAction: (action: SelectedDeviceAction) => void) {
+  onAction({ deviceId, action });
+  if (action === "speed") {
+    window.setTimeout(() => document.getElementById("external-drive-diagnostics")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+}
+
+function availableActions(storageDevice?: StorageDevice): Array<{ label: string; action: DeviceAction; enabled: boolean; reason?: string }> {
   return [
-    { label: "Explain", enabled: false, reason: "Coming next: plain-English explanation for this device." },
-    { label: "Details", enabled: true },
-    { label: "Check path", enabled: true },
-    { label: "Speed test", enabled: Boolean(storageDevice?.transport === "usb"), reason: storageDevice ? undefined : "Speed test is currently available for external drives only." },
+    { label: "Explain", action: "explain", enabled: true },
+    { label: "Details", action: "details", enabled: true },
+    { label: "Check path", action: "path", enabled: true },
+    { label: "Speed test", action: "speed", enabled: Boolean(storageDevice?.transport === "usb"), reason: storageDevice ? undefined : "Speed test is currently available for external drives only." },
   ];
+}
+
+function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose }: { action: DeviceAction; device: DiagnosticDevice; storageDevice?: StorageDevice; usbDevices: DiagnosticDevice[]; onClose: () => void }) {
+  const path = buildConnectionPath(device.id, usbDevices);
+  const explanation = explainDevice(device, storageDevice, path);
+
+  return (
+    <section className="card actionPanel">
+      <div className="actionPanelHeader">
+        <div>
+          <p className="eyebrow">{actionPanelTitle(action)}</p>
+          <h2>{deviceName(device)}</h2>
+          <p className="muted">{kindLabel(device.kind)} · {device.negotiated_speed?.label ?? "speed unknown"}</p>
+        </div>
+        <button type="button" className="plainButton" onClick={onClose}>Close</button>
+      </div>
+
+      {action === "explain" ? <p className="actionExplanation">{explanation}</p> : null}
+
+      {action === "details" ? (
+        <div className="actionGrid">
+          <FriendlyFact label="Device type" value={kindLabel(device.kind)} />
+          <FriendlyFact label="Connection speed" value={device.negotiated_speed?.label ?? "Unknown"} />
+          <FriendlyFact label="Manufacturer" value={device.manufacturer ?? "Unknown"} />
+          <FriendlyFact label="Product" value={device.product ?? "Unknown"} />
+          <FriendlyFact label="USB path" value={device.topology_path ?? device.id} />
+          <FriendlyFact label="Device ID" value={`${device.vendor_id ?? "????"}:${device.product_id ?? "????"}`} />
+        </div>
+      ) : null}
+
+      {action === "path" ? (
+        <div className="pathPanel">
+          <p className="actionExplanation">{path.length > 1 ? `${deviceName(device)} is connected through ${path.length - 1} visible upstream USB step${path.length - 1 === 1 ? "" : "s"}.` : `${deviceName(device)} appears directly on this USB path.`}</p>
+          <ol className="pathSteps">
+            {path.map((step, index) => (
+              <li key={step.id}>
+                <span className="pathIndex">{index + 1}</span>
+                <div><strong>{deviceName(step)}</strong><p>{kindLabel(step.kind)} · {step.negotiated_speed?.label ?? "speed unavailable"} · {step.topology_path ?? step.id}</p></div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+
+      {action === "speed" ? (
+        <p className="actionExplanation">Speed test is available in External drive diagnostics below. Use Auto-pick test file to run it without choosing a path manually.</p>
+      ) : null}
+    </section>
+  );
+}
+
+function actionPanelTitle(action: DeviceAction) {
+  return { explain: "Explain this device", details: "Device details", path: "Connection path", speed: "Speed test" }[action];
+}
+
+function explainDevice(device: DiagnosticDevice, storageDevice: StorageDevice | undefined, path: DiagnosticDevice[]) {
+  if (storageDevice) {
+    return `${deviceName(device)} looks like an external storage device connected over ${device.negotiated_speed?.label ?? "an unknown USB speed"}. Linkmetry can inspect its connection path and run a safe read-only speed test.`;
+  }
+  if (device.kind === "hub") return `${deviceName(device)} is a USB hub or controller path. It helps explain where other devices are connected, but it usually is not something you directly test.`;
+  if ((device.negotiated_speed?.mbps ?? 0) <= 12) return `${deviceName(device)} is a low-bandwidth USB device. That is normal for keyboards, receivers, lighting controllers, and similar accessories.`;
+  return `${deviceName(device)} is connected over ${device.negotiated_speed?.label ?? "USB"}. Linkmetry can show its details and where it sits in the USB connection path.${path.length > 1 ? ` It has ${path.length - 1} visible upstream step${path.length - 1 === 1 ? "" : "s"}.` : ""}`;
 }
 
 function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
@@ -296,7 +378,7 @@ function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCa
     .filter(({ device }) => device.transport === "usb");
 
   return (
-    <section className="deviceCheckSection">
+    <section className="deviceCheckSection" id="external-drive-diagnostics">
       <div className="sectionIntro">
         <p className="eyebrow">Secondary tool</p>
         <h2>External drive diagnostics</h2>
