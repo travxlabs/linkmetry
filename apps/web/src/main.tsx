@@ -144,10 +144,10 @@ function App() {
     <main className="shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">Linkmetry live prototype</p>
-          <h1>Connection health, without the guessing.</h1>
+          <p className="eyebrow">Linkmetry USB control panel</p>
+          <h1>Your USB ports and devices, explained.</h1>
           <p className="lede">
-            Live Linux scan from the Rust inspector: USB inventory, storage paths, negotiated speeds, evidence, and plain-English verdicts.
+            A friendly control panel for what is plugged in, where it is connected, how fast it is negotiating, and what diagnostics are available.
           </p>
         </div>
         <button className="scanButton" onClick={runScan} disabled={scan.status === "loading"}>
@@ -237,9 +237,9 @@ function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[
 
   return (
     <section className="card connectionMapCard">
-      <p className="eyebrow">Connection map</p>
-      <h2>What is connected where</h2>
-      <p className="muted inventoryIntro">This is the main view: visible USB paths, port/hub branches, connected devices, and negotiated speeds.</p>
+      <p className="eyebrow">Control panel</p>
+      <h2>Ports, paths, and connected devices</h2>
+      <p className="muted inventoryIntro">This is the main view: each visible USB path, what is attached to it, negotiated speed, and what Linkmetry can help with next.</p>
       <div className="portGrid">
         {map.map((port) => (
           <article className="portCard" key={port.root.id}>
@@ -379,9 +379,9 @@ function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: St
         tone: slowStorage.length > 0 ? "warning" : "good",
       },
       {
-        title: "Ports & devices",
+        title: "Control panel",
         value: `${usbDevices.length} devices detected`,
-        note: "Linkmetry is organizing devices by connection path first, then showing speed and device details.",
+        note: "Linkmetry is becoming one place to inspect, understand, and troubleshoot USB ports and devices.",
         tone: "info",
       },
     ],

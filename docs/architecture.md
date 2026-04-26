@@ -95,4 +95,18 @@ Main product focus:
 Secondary workflow:
 - external drive diagnostics and read benchmarking
 - useful as a detail page/tool for storage devices, not the primary home screen
+## 2026-04-26 Product North Star: USB Control Panel
+
+Brad clarified that Linkmetry should become an all-in-one control panel for everything useful and safe we can do with USB ports and devices.
+
+North star:
+- connection/port map as the home surface
+- per-port and per-device status, capabilities, and negotiated speeds
+- device-specific actions where possible: inspect, benchmark, identify, troubleshoot, explain, export/share
+- friendly plain-English guidance first, with advanced evidence/details available underneath
+- external drive diagnostics are one module inside the broader USB control panel, not the main product
+
+Design implication:
+- organize by ports/paths/devices, not by implementation layers like sysfs/block devices
+- every visible device should answer: what is it, where is it, how fast is it connected, is anything suspicious, what can I do with it?
 
