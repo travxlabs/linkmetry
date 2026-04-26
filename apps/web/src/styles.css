@@ -123,3 +123,5 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .mountSuggestions button { border: 1px solid rgba(125, 211, 252, 0.2); border-radius: 999px; padding: 7px 10px; color: #bfdbfe; background: rgba(14, 165, 233, 0.08); cursor: pointer; font-size: 0.78rem; font-weight: 750; }
 .mountSuggestions button:hover { border-color: rgba(125, 211, 252, 0.52); }
 .benchmarkDisabled { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(148, 163, 184, 0.08); }
+
+.scanButton.secondary { background: rgba(125, 211, 252, 0.14); color: #bfdbfe; border: 1px solid rgba(125, 211, 252, 0.32); }

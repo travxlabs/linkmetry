@@ -422,21 +422,36 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
     const normalizedTarget = target.trim();
     if (!normalizedTarget) {
       setStatus("error");
-      setError("Choose a readable file path on this drive first.");
+      setError("Click Auto-pick test file, or paste the full path to a large file on this drive.");
       return;
     }
     if (normalizedTarget.endsWith("/")) {
       setStatus("error");
-      setError("Choose a specific large file, not a folder/mount point.");
+      setError("That is a folder. Click Auto-pick test file, or paste a full file path inside that folder.");
       return;
     }
 
+    await fetchBenchmark(`/api/benchmark?iterations=3&target=${encodeURIComponent(normalizedTarget)}`);
+  }
+
+  async function runAutoBenchmark() {
+    const mount = benchmarkMountpoints[0];
+    if (!mount) {
+      setStatus("error");
+      setError("No benchmarkable USB mount was found for this drive.");
+      return;
+    }
+    await fetchBenchmark(`/api/benchmark/auto?iterations=3&mount=${encodeURIComponent(mount)}`);
+  }
+
+  async function fetchBenchmark(url: string) {
     setStatus("running");
     setError(null);
     try {
-      const response = await fetch(`/api/benchmark?iterations=3&target=${encodeURIComponent(normalizedTarget)}`, { cache: "no-store" });
+      const response = await fetch(url, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? `Benchmark failed with HTTP ${response.status}`);
+      setTarget(payload.target ?? target);
       setResult(payload);
       setStatus("done");
     } catch (error) {
@@ -450,7 +465,7 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
       <div>
         <p className="eyebrow">Read benchmark</p>
         <h3>Test real-world read speed</h3>
-        <p className="muted">Safe read-only test. Pick a large existing file on this storage path; Linkmetry does not write to the drive.</p>
+        <p className="muted">Safe read-only test. Click auto-pick and Linkmetry will choose a large readable file on this drive. It does not write to the drive.</p>
       </div>
       {isUsbStorage ? (
         <>
@@ -460,6 +475,9 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
               onChange={(event) => setTarget(event.target.value)}
               placeholder={suggestedTarget}
             />
+            <button className="scanButton small secondary" onClick={runAutoBenchmark} disabled={status === "running" || benchmarkMountpoints.length === 0}>
+              Auto-pick test file
+            </button>
             <button className="scanButton small" onClick={runBenchmark} disabled={status === "running"}>
               {status === "running" ? "Testing…" : "Run read test"}
             </button>
@@ -467,7 +485,7 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
           {benchmarkMountpoints.length > 0 ? (
             <div className="mountSuggestions">
               {benchmarkMountpoints.map((mountpoint) => (
-                <button key={mountpoint} type="button" onClick={() => setTarget(`${mountpoint}/`)}>{mountpoint}</button>
+                <button key={mountpoint} type="button" onClick={() => setTarget(`${mountpoint}/path/to/large-file`)}>{mountpoint}</button>
               ))}
             </div>
           ) : null}

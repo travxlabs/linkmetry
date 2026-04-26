@@ -1,5 +1,6 @@
 import json
 import mimetypes
+import os
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -16,6 +17,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.scan()
         if self.path.split('?', 1)[0] == '/api/storage-cards':
             return self.storage_cards()
+        if self.path.split('?', 1)[0] == '/api/benchmark/auto':
+            return self.auto_benchmark()
         if self.path.split('?', 1)[0] == '/api/benchmark':
             return self.benchmark()
         return self.static()
@@ -52,6 +55,26 @@ class Handler(BaseHTTPRequestHandler):
             query = parse_qs(urlparse(self.path).query)
             target = query.get('target', [''])[0]
             iterations = query.get('iterations', ['3'])[0]
+            return self.run_benchmark(target, iterations)
+        except Exception as exc:
+            return self.json({'error': str(exc)}, status=500)
+
+    def auto_benchmark(self):
+        try:
+            query = parse_qs(urlparse(self.path).query)
+            mount = query.get('mount', [''])[0]
+            iterations = query.get('iterations', ['3'])[0]
+            if not mount:
+                return self.json({'error': 'Choose a drive/mount first.'}, status=400)
+            target = self.find_test_file(mount)
+            if not target:
+                return self.json({'error': f'No large readable test file found under {mount}. Add or choose a large file manually.'}, status=404)
+            return self.run_benchmark(target, iterations)
+        except Exception as exc:
+            return self.json({'error': str(exc)}, status=500)
+
+    def run_benchmark(self, target, iterations):
+        try:
             if not target:
                 return self.json({'error': 'Choose a readable file path first.'}, status=400)
             if target.endswith('/'):
@@ -62,8 +85,35 @@ class Handler(BaseHTTPRequestHandler):
         except subprocess.CalledProcessError as exc:
             message = (exc.stderr or '').strip() or 'Benchmark command failed.'
             return self.json({'error': message}, status=500)
-        except Exception as exc:
-            return self.json({'error': str(exc)}, status=500)
+
+    def find_test_file(self, mount):
+        mount_path = Path(mount).resolve()
+        allowed_roots = [Path('/mnt').resolve(), Path('/home/brad/Videos').resolve(), Path('/home/brad/Documents').resolve()]
+        if not any(str(mount_path).startswith(str(root)) for root in allowed_roots):
+            return None
+        if not mount_path.exists() or not mount_path.is_dir():
+            return None
+
+        best = None
+        best_size = 0
+        scanned = 0
+        for root, dirs, files in os.walk(mount_path):
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in {'node_modules', '.git', 'target'}]
+            for name in files:
+                scanned += 1
+                if scanned > 2000:
+                    break
+                path = Path(root) / name
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue
+                if stat.st_size >= 50 * 1024 * 1024 and stat.st_size > best_size:
+                    best = path
+                    best_size = stat.st_size
+            if scanned > 2000:
+                break
+        return str(best) if best else None
 
     def run_cli(self, command):
         return self.run_cli_args([command])
