@@ -50,7 +50,7 @@ pnpm install
 pnpm dev
 ```
 
-Open the Vite URL (currently `http://localhost:5174/`) to test the device card, benchmark panel, and evidence section.
+Open `http://trav-dev:3000/` (or `http://192.168.4.67:3000/`) to test the device card, benchmark panel, and evidence section.
 
 ## Product rule
 
