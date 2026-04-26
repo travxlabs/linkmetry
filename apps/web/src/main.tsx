@@ -181,14 +181,8 @@ function App() {
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
 
-      {report ? <UsbInventory devices={usbDevices} /> : null}
-
-      {storageCards.map((card, index) => (
-        <React.Fragment key={storageDevices[index]?.dev_path ?? card.subtitle ?? card.title}>
-          <DeviceSummary card={card} device={storageDevices[index]} usbDevices={usbDevices} />
-          <EvidencePanel device={storageDevices[index]} />
-        </React.Fragment>
-      ))}
+      {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
+      {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
   );
 }
@@ -237,21 +231,48 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   );
 }
 
-function UsbInventory({ devices }: { devices: DiagnosticDevice[] }) {
-  const groups = useMemo(() => groupUsbDevices(devices), [devices]);
+function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
+  const externalIndexes = storageDevices
+    .map((device, index) => ({ device, index }))
+    .filter(({ device }) => device.transport === "usb");
 
   return (
-    <section className="card">
-      <p className="eyebrow">Device list</p>
-      <h2>Connected devices</h2>
-      <p className="muted inventoryIntro">
-        Useful devices are shown first. Technical hub/controller details are tucked away unless you want them.
-      </p>
-
-      <InventoryGroup title="Worth checking" description="Drives, audio/video devices, network adapters, and fast USB devices." devices={groups.important} empty="No standout devices detected." />
-      <InventoryGroup title="Everyday accessories" description="Keyboards, receivers, lighting controllers, and other low-bandwidth devices. These are usually fine at lower speeds." devices={groups.peripherals} empty="No everyday accessories detected." />
-      <InventoryGroup title="Technical details" description="USB hubs, root buses, and controller paths. Useful for troubleshooting, but not the first thing most people need." devices={groups.infrastructure} empty="No technical hub/controller devices detected." collapsed />
+    <section className="deviceCheckSection">
+      <div className="sectionIntro">
+        <p className="eyebrow">Devices to check</p>
+        <h2>Your external drives</h2>
+        <p className="muted">Each drive appears once here. Open the technical details below only if you want the raw USB/device list.</p>
+      </div>
+      {externalIndexes.length > 0 ? (
+        externalIndexes.map(({ device, index }) => (
+          <DeviceSummary key={device.dev_path} card={cards[index]} device={device} usbDevices={usbDevices} />
+        ))
+      ) : (
+        <section className="card"><h2>No external drives found</h2><p className="muted">Plug in an external USB drive to test speed and cable/path health.</p></section>
+      )}
     </section>
+  );
+}
+
+function UsbInventory({ devices, storageDevices }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[] }) {
+  const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
+  const groups = useMemo(() => groupUsbDevices(devices.filter((device) => !externalStorageIds.has(device.id))), [devices, storageDevices]);
+
+  return (
+    <details className="card technicalDetails">
+      <summary>
+        <div>
+          <p className="eyebrow">Technical details</p>
+          <h2>Raw USB/device list</h2>
+          <p className="muted">For troubleshooting: accessories, hubs, controllers, and lower-level USB details.</p>
+        </div>
+        <span className="detailsPill">Show details</span>
+      </summary>
+
+      <InventoryGroup title="Everyday accessories" description="Keyboards, receivers, lighting controllers, and other low-bandwidth devices. These are usually fine at lower speeds." devices={groups.peripherals} empty="No everyday accessories detected." />
+      <InventoryGroup title="Other notable USB devices" description="Audio/video/network devices and fast USB devices that are not already shown above." devices={groups.important} empty="No other standout devices detected." />
+      <InventoryGroup title="Hubs & controllers" description="USB hubs, root buses, and controller paths. Useful for troubleshooting, but not the first thing most people need." devices={groups.infrastructure} empty="No hub/controller devices detected." />
+    </details>
   );
 }
 
@@ -407,24 +428,25 @@ function DeviceSummary({ card, device, usbDevices }: { card: DeviceCard; device?
         </div>
       ) : null}
 
-      <dl className="factsGrid">
-        {card.facts.map((fact) => (
-          <div key={fact.label}>
-            <dt>{fact.label}</dt>
-            <dd>{fact.value}</dd>
-          </div>
-        ))}
-        {device?.usb_device_id ? (
-          <div>
-            <dt>Topology</dt>
-            <dd>{device.usb_device_id}</dd>
-          </div>
-        ) : null}
-      </dl>
+      <div className="friendlyFacts">
+        <FriendlyFact label="Connected as" value={device?.usb_link_speed?.label ?? "Speed unknown"} />
+        <FriendlyFact label="Available at" value={benchmarkableMountpoints(device ?? ({} as StorageDevice))[0] ?? device?.dev_path ?? "Unknown"} />
+        <FriendlyFact label="Likely status" value={verdict?.title ?? "Needs a speed test"} />
+      </div>
 
-      {device ? <ConnectionPathPanel device={device} path={connectionPath} /> : null}
       {device ? <BenchmarkControl device={device} /> : null}
+      {device ? <ConnectionPathPanel device={device} path={connectionPath} /> : null}
+      {device ? <EvidencePanel device={device} /> : null}
     </section>
+  );
+}
+
+function FriendlyFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
