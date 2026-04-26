@@ -40,6 +40,18 @@ Storage correlation prototype:
 cargo run -p linkmetry-cli -- storage --pretty
 ```
 
+
+## UI prototype
+
+A first testable web UI lives in `apps/web`. It renders the Rust `DeviceCard`/storage diagnosis shape with a sample Samsung T7 result while the desktop bridge is still being designed.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open the Vite URL (currently `http://localhost:5174/`) to test the device card, benchmark panel, and evidence section.
+
 ## Product rule
 
 Linkmetry should never pretend to know more than the OS and hardware expose. If a conclusion is inferred, it must carry confidence and evidence.

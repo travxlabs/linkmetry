@@ -1,0 +1,21 @@
+{
+  "name": "linkmetry",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "pnpm --filter @linkmetry/web dev",
+    "build": "pnpm --filter @linkmetry/web build",
+    "preview": "pnpm --filter @linkmetry/web preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "dependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}
