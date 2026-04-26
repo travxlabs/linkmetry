@@ -99,6 +99,8 @@ pub struct LinkSpeed {
     pub raw: String,
     pub mbps: Option<f64>,
     pub label: String,
+    pub generation: String,
+    pub is_usb3_or_better: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -168,11 +170,23 @@ pub fn parse_usb_speed(raw: &str) -> LinkSpeed {
         Some(speed) => format!("Unknown high-speed link ({speed} Mbps)"),
         None => format!("Unknown link speed ({trimmed})"),
     };
+    let generation = match mbps {
+        Some(speed) if speed <= 12.0 => "USB 1.x".to_string(),
+        Some(speed) if speed <= 480.0 => "USB 2".to_string(),
+        Some(speed) if speed <= 10_000.0 => "USB 3".to_string(),
+        Some(speed) if speed <= 20_000.0 => "USB 3.2 / USB4".to_string(),
+        Some(speed) if speed <= 40_000.0 => "USB4 / Thunderbolt-class".to_string(),
+        Some(_) => "High-speed USB".to_string(),
+        None => "Unknown USB generation".to_string(),
+    };
+    let is_usb3_or_better = mbps.is_some_and(|speed| speed > 480.0);
 
     LinkSpeed {
         raw: trimmed,
         mbps,
         label,
+        generation,
+        is_usb3_or_better,
     }
 }
 

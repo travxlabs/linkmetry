@@ -109,4 +109,16 @@ North star:
 Design implication:
 - organize by ports/paths/devices, not by implementation layers like sysfs/block devices
 - every visible device should answer: what is it, where is it, how fast is it connected, is anything suspicious, what can I do with it?
+## 2026-04-26 USB Generation and Connector Visibility
+
+Brad wants it to be very clear what is USB 3+ and what is not, and whether a connection is USB-C or not.
+
+Current Linux finding on trav-dev:
+- negotiated speed is available through USB sysfs and can classify USB 1.x / USB 2 / USB 3 / USB4-class paths
+- `/sys/class/typec` exists but is empty, so USB-C connector identity is not reliably exposed on this machine yet
+
+UX rule:
+- show USB generation prominently from negotiated speed
+- do not claim USB-C unless the OS exposes connector/Type-C evidence
+- if connector shape is unknown, say `Connector: unknown` instead of guessing
 
