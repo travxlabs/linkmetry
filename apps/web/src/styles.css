@@ -150,3 +150,18 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .detailsPill { flex: 0 0 auto; border-radius: 999px; padding: 9px 12px; color: #bfdbfe; background: rgba(14, 165, 233, 0.1); font-size: 0.82rem; font-weight: 800; }
 .technicalDetails[open] .detailsPill { color: #d1fae5; background: rgba(16, 185, 129, 0.12); }
 @media (max-width: 780px) { .friendlyFacts { grid-template-columns: 1fr; } .technicalDetails summary { align-items: flex-start; flex-direction: column; } }
+
+.connectionMapCard { margin-top: 20px; }
+.portGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.portCard { border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 22px; padding: 18px; background: rgba(2, 6, 23, 0.34); }
+.portHeader { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid rgba(148, 163, 184, 0.14); }
+.portHeader span { display: block; color: #7dd3fc; font-weight: 900; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.portHeader strong { display: block; margin-top: 5px; color: #edf5ff; line-height: 1.25; }
+.portHeader em { color: #a8b7ca; font-style: normal; font-size: 0.82rem; text-align: right; }
+.portDevices { display: grid; gap: 10px; margin-top: 14px; }
+.portDevice { border-radius: 16px; padding: 13px; background: rgba(15, 23, 42, 0.72); }
+.portDevice.primaryDevice { outline: 1px solid rgba(52, 211, 153, 0.38); background: rgba(16, 185, 129, 0.09); }
+.portDevice span { color: #93a4ba; font-size: 0.74rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
+.portDevice strong { display: block; margin-top: 4px; color: #edf5ff; }
+.portDevice p { margin: 4px 0 0; color: #a8b7ca; font-size: 0.84rem; line-height: 1.4; }
+@media (max-width: 900px) { .portGrid { grid-template-columns: 1fr; } }

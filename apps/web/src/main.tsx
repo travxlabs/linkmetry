@@ -180,7 +180,7 @@ function App() {
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
-
+      {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} /> : null}
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
@@ -231,6 +231,41 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   );
 }
 
+function ConnectionMap({ devices, storageDevices }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[] }) {
+  const map = useMemo(() => buildConnectionMap(devices), [devices]);
+  const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
+
+  return (
+    <section className="card connectionMapCard">
+      <p className="eyebrow">Connection map</p>
+      <h2>What is connected where</h2>
+      <p className="muted inventoryIntro">This is the main view: visible USB paths, port/hub branches, connected devices, and negotiated speeds.</p>
+      <div className="portGrid">
+        {map.map((port) => (
+          <article className="portCard" key={port.root.id}>
+            <div className="portHeader">
+              <div>
+                <span>{port.root.id}</span>
+                <strong>{deviceName(port.root)}</strong>
+              </div>
+              <em>{port.root.negotiated_speed?.label ?? "speed unknown"}</em>
+            </div>
+            <div className="portDevices">
+              {port.children.length > 0 ? port.children.map((device) => (
+                <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
+                  <span>{kindLabel(device.kind)}</span>
+                  <strong>{deviceName(device)}</strong>
+                  <p>{device.negotiated_speed?.label ?? "Speed unavailable"} · path {device.topology_path ?? device.id}</p>
+                </div>
+              )) : <p className="muted">No downstream devices visible on this path.</p>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
   const externalIndexes = storageDevices
     .map((device, index) => ({ device, index }))
@@ -239,9 +274,9 @@ function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCa
   return (
     <section className="deviceCheckSection">
       <div className="sectionIntro">
-        <p className="eyebrow">Devices to check</p>
-        <h2>Your external drives</h2>
-        <p className="muted">Each drive appears once here. Open the technical details below only if you want the raw USB/device list.</p>
+        <p className="eyebrow">Device detail</p>
+        <h2>External drive details</h2>
+        <p className="muted">Drives get extra tools like speed testing. They are details under the broader connection map, not the whole product.</p>
       </div>
       {externalIndexes.length > 0 ? (
         externalIndexes.map(({ device, index }) => (
@@ -328,29 +363,55 @@ function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: St
     .sort((a, b) => (b.usb_link_speed?.mbps ?? 0) - (a.usb_link_speed?.mbps ?? 0))[0];
 
   return {
-    headline: `${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"} found`,
-    subline: `${usbDevices.length} connected USB devices · ${fastDevices.length} fast connections`,
+    headline: `${usbDevices.length} connected USB device${usbDevices.length === 1 ? "" : "s"} found`,
+    subline: `${fastDevices.length} fast connection${fastDevices.length === 1 ? "" : "s"} · ${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"}`,
     cards: [
       {
-        title: "Main thing to check",
-        value: fastestDrive ? (fastestDrive.model ?? fastestDrive.dev_path) : "No external drive found",
-        note: fastestDrive?.usb_link_speed ? `Connected at ${fastestDrive.usb_link_speed.label}.` : "Plug in an external drive to test cables and speed.",
-        tone: fastestDrive ? "good" : "info",
+        title: "Connection map",
+        value: `${visiblePortCount(usbDevices)} visible USB path${visiblePortCount(usbDevices) === 1 ? "" : "s"}`,
+        note: "See what is connected where, including hubs and downstream devices.",
+        tone: "info",
       },
       {
         title: "Possible issue",
-        value: slowStorage.length > 0 ? `${slowStorage.length} slow drive path${slowStorage.length === 1 ? "" : "s"}` : "No obvious slow drive path",
+        value: slowStorage.length > 0 ? `${slowStorage.length} slow storage path${slowStorage.length === 1 ? "" : "s"}` : "No obvious slow storage path",
         note: slowStorage.length > 0 ? "At least one external drive appears to be on a USB 2.0-class path." : "No external storage path is obviously capped at USB 2.0 speed.",
         tone: slowStorage.length > 0 ? "warning" : "good",
       },
       {
-        title: "Next step",
-        value: "Run a speed test",
-        note: "Use Auto-pick test file on an external drive to get a real-world verdict.",
+        title: "Ports & devices",
+        value: `${usbDevices.length} devices detected`,
+        note: "Linkmetry is organizing devices by connection path first, then showing speed and device details.",
         tone: "info",
       },
     ],
   };
+}
+
+function buildConnectionMap(devices: DiagnosticDevice[]) {
+  const roots = devices
+    .filter((device) => device.id.startsWith("usb") || /^\d+-\d+$/.test(device.id))
+    .sort((a, b) => sortSpeed(b) - sortSpeed(a) || a.id.localeCompare(b.id));
+
+  return roots.map((root) => ({
+    root,
+    children: devices
+      .filter((device) => device.id !== root.id && isDownstreamOf(device.id, root.id))
+      .filter((device) => !device.id.startsWith("usb"))
+      .sort((a, b) => sortSpeed(b) - sortSpeed(a) || a.id.localeCompare(b.id)),
+  })).filter((port) => port.children.length > 0 || port.root.id.startsWith("usb"));
+}
+
+function isDownstreamOf(deviceId: string, rootId: string) {
+  if (rootId.startsWith("usb")) {
+    const bus = rootId.replace("usb", "");
+    return deviceId.startsWith(`${bus}-`);
+  }
+  return deviceId.startsWith(`${rootId}.`);
+}
+
+function visiblePortCount(devices: DiagnosticDevice[]) {
+  return buildConnectionMap(devices).length;
 }
 
 function groupUsbDevices(devices: DiagnosticDevice[]) {
