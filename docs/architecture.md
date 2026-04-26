@@ -73,3 +73,13 @@ The Linux adapter now reads `/sys/class/block`, filters real disks, maps USB-bac
 ## Test fixtures
 
 Linux sysfs fixture coverage now validates USB device parsing and storage-to-USB correlation using a Samsung T7-style fixture.
+## 2026-04-26 Product Principle: Normal-Person First
+
+Brad emphasized that Linkmetry must be friendly to regular people, not just tech nerds.
+
+Implementation implication:
+- Lead with plain-English summary and recommended next action.
+- Hide raw USB/sysfs/topology details behind “technical evidence” or lower-priority sections.
+- Avoid making users understand mount paths, device IDs, USB class codes, or Linux internals.
+- Advanced details are still useful, but they should support the answer — not be the answer.
+

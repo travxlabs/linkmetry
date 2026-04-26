@@ -138,6 +138,8 @@ function App() {
   const usbStorageCount = storageDevices.filter((device) => device.transport === "usb").length;
   const highSpeedUsbCount = usbDevices.filter((device) => (device.negotiated_speed?.mbps ?? 0) > 480).length;
 
+  const summary = report ? buildFriendlySummary(usbDevices, storageDevices) : null;
+
   return (
     <main className="shell">
       <section className="hero">
@@ -160,16 +162,16 @@ function App() {
         </div>
         <div className="deviceHeader">
           <div>
-            <h2>{usbDevices.length} USB device{usbDevices.length === 1 ? "" : "s"} · {storageCards.length} storage path{storageCards.length === 1 ? "" : "s"}</h2>
+            <h2>{summary?.headline ?? `${usbDevices.length} connected device${usbDevices.length === 1 ? "" : "s"} found`}</h2>
             <p className="muted">
-              {highSpeedUsbCount} high-speed USB · {usbStorageCount} USB-backed storage · Platform: {report?.platform ?? "linux"}
+              {summary?.subline ?? `${highSpeedUsbCount} high-speed USB · ${usbStorageCount} USB-backed storage`} · Platform: {report?.platform ?? "linux"}
               {report?.generated_at ? ` · Refreshed ${new Date(report.generated_at).toLocaleTimeString()}` : ""}
             </p>
           </div>
           <div className="badges">
-            <span>Live Rust output</span>
-            <span>Read-only scan</span>
-            <span>Linux sysfs</span>
+            <span>Safe scan</span>
+            <span>Read-only</span>
+            <span>Details available</span>
           </div>
         </div>
         {scan.status === "error" ? <p className="errorText">{scan.error}</p> : null}
@@ -177,6 +179,7 @@ function App() {
 
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
+      {summary ? <FriendlySummary summary={summary} /> : null}
 
       {report ? <UsbInventory devices={usbDevices} /> : null}
 
@@ -210,20 +213,44 @@ function EmptyCard() {
   );
 }
 
+type FriendlySummaryData = {
+  headline: string;
+  subline: string;
+  cards: Array<{ title: string; value: string; note: string; tone: StatusTone }>;
+};
+
+function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
+  return (
+    <section className="card friendlySummary">
+      <p className="eyebrow">Plain-English summary</p>
+      <h2>What Linkmetry found</h2>
+      <div className="summaryGrid">
+        {summary.cards.map((card) => (
+          <div className={`summaryTile ${card.tone}`} key={card.title}>
+            <span>{card.title}</span>
+            <strong>{card.value}</strong>
+            <p>{card.note}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function UsbInventory({ devices }: { devices: DiagnosticDevice[] }) {
   const groups = useMemo(() => groupUsbDevices(devices), [devices]);
 
   return (
     <section className="card">
-      <p className="eyebrow">USB inventory</p>
-      <h2>What is plugged into the USB tree</h2>
+      <p className="eyebrow">Device list</p>
+      <h2>Connected devices</h2>
       <p className="muted inventoryIntro">
-        Linkmetry now separates likely user-facing devices from background hubs/controllers so the useful signal is easier to see.
+        Useful devices are shown first. Technical hub/controller details are tucked away unless you want them.
       </p>
 
-      <InventoryGroup title="Likely important" description="Storage, audio/video, network, and high-speed attached devices." devices={groups.important} empty="No standout user-facing devices detected." />
-      <InventoryGroup title="Peripherals" description="Keyboards, receivers, lighting controllers, and low-bandwidth USB devices." devices={groups.peripherals} empty="No low-bandwidth peripherals detected." />
-      <InventoryGroup title="Hubs & controllers" description="USB hubs, root buses, and controller paths that explain topology but are usually not the thing you care about first." devices={groups.infrastructure} empty="No hub/controller devices detected." collapsed />
+      <InventoryGroup title="Worth checking" description="Drives, audio/video devices, network adapters, and fast USB devices." devices={groups.important} empty="No standout devices detected." />
+      <InventoryGroup title="Everyday accessories" description="Keyboards, receivers, lighting controllers, and other low-bandwidth devices. These are usually fine at lower speeds." devices={groups.peripherals} empty="No everyday accessories detected." />
+      <InventoryGroup title="Technical details" description="USB hubs, root buses, and controller paths. Useful for troubleshooting, but not the first thing most people need." devices={groups.infrastructure} empty="No technical hub/controller devices detected." collapsed />
     </section>
   );
 }
@@ -269,6 +296,40 @@ function InventoryGroup({
       {content}
     </div>
   );
+}
+
+function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: StorageDevice[]): FriendlySummaryData {
+  const externalDrives = storageDevices.filter((device) => device.transport === "usb");
+  const fastDevices = usbDevices.filter((device) => (device.negotiated_speed?.mbps ?? 0) > 480);
+  const slowStorage = externalDrives.filter((device) => (device.usb_link_speed?.mbps ?? Number.POSITIVE_INFINITY) <= 480);
+  const fastestDrive = externalDrives
+    .filter((device) => device.usb_link_speed?.mbps)
+    .sort((a, b) => (b.usb_link_speed?.mbps ?? 0) - (a.usb_link_speed?.mbps ?? 0))[0];
+
+  return {
+    headline: `${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"} found`,
+    subline: `${usbDevices.length} connected USB devices · ${fastDevices.length} fast connections`,
+    cards: [
+      {
+        title: "Main thing to check",
+        value: fastestDrive ? (fastestDrive.model ?? fastestDrive.dev_path) : "No external drive found",
+        note: fastestDrive?.usb_link_speed ? `Connected at ${fastestDrive.usb_link_speed.label}.` : "Plug in an external drive to test cables and speed.",
+        tone: fastestDrive ? "good" : "info",
+      },
+      {
+        title: "Possible issue",
+        value: slowStorage.length > 0 ? `${slowStorage.length} slow drive path${slowStorage.length === 1 ? "" : "s"}` : "No obvious slow drive path",
+        note: slowStorage.length > 0 ? "At least one external drive appears to be on a USB 2.0-class path." : "No external storage path is obviously capped at USB 2.0 speed.",
+        tone: slowStorage.length > 0 ? "warning" : "good",
+      },
+      {
+        title: "Next step",
+        value: "Run a speed test",
+        note: "Use Auto-pick test file on an external drive to get a real-world verdict.",
+        tone: "info",
+      },
+    ],
+  };
 }
 
 function groupUsbDevices(devices: DiagnosticDevice[]) {
@@ -388,8 +449,8 @@ function ConnectionPathPanel({ device, path }: { device: StorageDevice; path: Di
         </div>
       ) : (
         <div className="pathInsight">
-          <strong>No obvious USB-speed bottleneck in this path</strong>
-          <span>Every known upstream USB hop is at least as fast as the device path Linkmetry can see.</span>
+          <strong>Connection path looks okay</strong>
+          <span>Nothing in the visible route looks slower than the device itself.</span>
         </div>
       )}
       {path.length > 0 ? (
@@ -463,8 +524,8 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
   return (
     <div className="benchmarkBox">
       <div>
-        <p className="eyebrow">Read benchmark</p>
-        <h3>Test real-world read speed</h3>
+        <p className="eyebrow">Speed test</p>
+        <h3>Check how fast this drive can read</h3>
         <p className="muted">Safe read-only test. Click auto-pick and Linkmetry will choose a large readable file on this drive. It does not write to the drive.</p>
       </div>
       {isUsbStorage ? (
@@ -546,8 +607,8 @@ function EvidencePanel({ device }: { device?: StorageDevice }) {
 
   return (
     <section className="card evidenceCard">
-      <p className="eyebrow">Detected evidence</p>
-      <h2>What Linux exposed for {device.dev_path}</h2>
+      <p className="eyebrow">Technical evidence</p>
+      <h2>Details behind the answer for {device.dev_path}</h2>
       <div className="evidenceList">
         <EvidenceItem label="Storage path" value={`${device.vendor ?? ""} ${device.model ?? device.dev_path}`.trim()} />
         <EvidenceItem label="USB device id" value={device.usb_device_id ?? "Unavailable"} />
