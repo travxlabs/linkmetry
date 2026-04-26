@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use linkmetry_core::{
-    verdicts_for_storage_benchmark, BenchmarkResult, DeviceCard, StorageDevice, Verdict,
+    verdicts_for_storage_benchmark, BenchmarkResult, DeviceCard, Platform, StorageDevice, Verdict,
 };
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -12,6 +12,13 @@ struct StorageDiagnosisReport {
     card: DeviceCard,
     benchmark: BenchmarkResult,
     verdicts: Vec<Verdict>,
+}
+
+#[derive(Debug, Serialize)]
+struct StorageCardsReport {
+    platform: Platform,
+    devices: Vec<StorageDevice>,
+    cards: Vec<DeviceCard>,
 }
 
 fn main() -> Result<()> {
@@ -31,6 +38,11 @@ fn main() -> Result<()> {
         "storage" => {
             let pretty = take_flag(&mut args, "--pretty") || take_flag(&mut args, "-p");
             let report = linkmetry_platform_linux::inspect_storage_devices()?;
+            print_json(&report, pretty)?;
+        }
+        "storage-cards" => {
+            let pretty = take_flag(&mut args, "--pretty") || take_flag(&mut args, "-p");
+            let report = storage_cards()?;
             print_json(&report, pretty)?;
         }
         "bench-read" => {
@@ -60,6 +72,17 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn storage_cards() -> Result<StorageCardsReport> {
+    let report = linkmetry_platform_linux::inspect_storage_devices()?;
+    let cards = report.devices.iter().map(DeviceCard::from).collect();
+
+    Ok(StorageCardsReport {
+        platform: report.platform,
+        devices: report.devices,
+        cards,
+    })
 }
 
 fn diagnose_storage(path: impl AsRef<Path>, iterations: u32) -> Result<StorageDiagnosisReport> {

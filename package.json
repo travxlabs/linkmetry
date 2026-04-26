@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "pnpm --filter @linkmetry/web dev",
     "build": "pnpm --filter @linkmetry/web build",
-    "preview": "pnpm --filter @linkmetry/web preview"
+    "preview": "pnpm --filter @linkmetry/web preview",
+    "serve:live": "pnpm --filter @linkmetry/web serve:live"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "latest",

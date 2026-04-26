@@ -43,18 +43,26 @@ cargo run -p linkmetry-cli -- storage --pretty
 
 ## UI prototype
 
-A first testable web UI lives in `apps/web`. It renders the Rust `DeviceCard`/storage diagnosis shape with a sample Samsung T7 result while the desktop bridge is still being designed.
+A first testable web UI lives in `apps/web`. It now renders live storage card data from the Rust CLI through a small local API bridge.
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Open `http://trav-dev:9000/` (or `http://192.168.4.67:9000/`) to test the current static UI preview. Port 8080 is reserved for Open WebUI on trav-dev.
+Open `http://trav-dev:9000/` (or `http://192.168.4.67:9000/`) to test the current live UI preview. The preview serves the built web UI plus `/api/storage-cards`, which executes the built `linkmetry-cli storage-cards` command against Linux sysfs. Port 8080 is reserved for Open WebUI on trav-dev.
 
 ## Product rule
 
 Linkmetry should never pretend to know more than the OS and hardware expose. If a conclusion is inferred, it must carry confidence and evidence.
+
+
+Live storage-card API:
+
+```bash
+cargo run -p linkmetry-cli -- storage-cards --pretty
+pnpm serve:live
+```
 
 Read-only file benchmark:
 

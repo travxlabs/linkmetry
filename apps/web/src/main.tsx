@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -26,21 +26,16 @@ type DeviceCard = {
   facts: Fact[];
 };
 
-type BenchmarkRun = {
-  bytes_read: number;
-  elapsed_seconds: number;
-  mib_per_second: number;
+type Evidence = {
+  source: string;
+  key: string;
+  value: string;
 };
 
-type BenchmarkResult = {
-  kind: string;
-  target: string;
-  bytes: number;
-  iterations: number;
-  runs: BenchmarkRun[];
-  average_mib_per_second: number;
-  best_mib_per_second: number;
-  caveats: string[];
+type LinkSpeed = {
+  raw: string;
+  mbps?: number;
+  label: string;
 };
 
 type StorageDevice = {
@@ -48,133 +43,147 @@ type StorageDevice = {
   dev_path: string;
   model?: string;
   vendor?: string;
+  serial?: string;
   size_bytes?: number;
+  removable?: boolean;
+  rotational?: boolean;
   transport?: string;
   mountpoints: string[];
+  sysfs_path?: string;
   usb_device_id?: string;
-  usb_link_speed?: { raw: string; mbps?: number; label: string };
+  usb_link_speed?: LinkSpeed;
+  usb_product?: string;
+  evidence: Evidence[];
   verdicts: Verdict[];
 };
 
-type DiagnosisReport = {
-  target: string;
-  storage: StorageDevice;
-  card: DeviceCard;
-  benchmark: BenchmarkResult;
-  verdicts: Verdict[];
+type LiveStorageReport = {
+  generated_at: string;
+  platform: string;
+  devices: StorageDevice[];
+  cards: DeviceCard[];
 };
 
-const sampleReport: DiagnosisReport = {
-  target: "/mnt/t7/videos/obs/2026-04-21 12-29-35.mp4",
-  storage: {
-    name: "sdb",
-    dev_path: "/dev/sdb",
-    model: "PSSD T7 Shield",
-    vendor: "Samsung",
-    size_bytes: 4000787030016,
-    transport: "usb",
-    mountpoints: ["/mnt/t7", "/home/brad/Videos"],
-    usb_device_id: "2-7.2",
-    usb_link_speed: {
-      raw: "5000",
-      mbps: 5000,
-      label: "USB 3.x SuperSpeed (5 Gbps)",
-    },
-    verdicts: [
-      {
-        title: "External USB storage detected",
-        message:
-          "This storage device is attached through USB and the OS reports USB 3.x SuperSpeed (5 Gbps). Benchmarking comes next to verify real-world throughput.",
-        confidence: "high",
-        evidence_keys: ["sysfs_path", "usb_device_id", "usb_speed"],
-      },
-    ],
-  },
-  card: {
-    title: "PSSD T7 Shield",
-    subtitle: "/dev/sdb",
-    status: "good",
-    badges: ["USB", "USB 3.x SuperSpeed (5 Gbps)", "3.6 TiB"],
-    primary_verdict: {
-      title: "Read speed looks healthy for a 5 Gbps USB path",
-      message:
-        "Average read speed was 431 MiB/s on a USB 3.x SuperSpeed (5 Gbps) link. That is in the expected real-world range for many 5 Gbps external SSD paths.",
-      confidence: "high",
-      evidence_keys: ["usb_speed", "benchmark"],
-    },
-    facts: [
-      { label: "Device", value: "/dev/sdb" },
-      { label: "Vendor", value: "Samsung" },
-      { label: "USB link", value: "USB 3.x SuperSpeed (5 Gbps)" },
-      { label: "Mounts", value: "/mnt/t7, /home/brad/Videos" },
-    ],
-  },
-  benchmark: {
-    kind: "read-file",
-    target: "/mnt/t7/videos/obs/2026-04-21 12-29-35.mp4",
-    bytes: 2238712217,
-    iterations: 3,
-    runs: [
-      { bytes_read: 2238712217, elapsed_seconds: 5.16, mib_per_second: 413.5 },
-      { bytes_read: 2238712217, elapsed_seconds: 4.86, mib_per_second: 439.2 },
-      { bytes_read: 2238712217, elapsed_seconds: 4.81, mib_per_second: 443.1 },
-    ],
-    average_mib_per_second: 431.9,
-    best_mib_per_second: 443.1,
-    caveats: [
-      "Read-only file benchmark; results may be affected by OS page cache.",
-      "This does not test write speed and does not modify the target drive.",
-    ],
-  },
-  verdicts: [
-    {
-      title: "Read speed looks healthy for a 5 Gbps USB path",
-      message:
-        "Average read speed was 431 MiB/s on a USB 3.x SuperSpeed (5 Gbps) link. That is in the expected real-world range for many 5 Gbps external SSD paths.",
-      confidence: "high",
-      evidence_keys: ["usb_speed", "benchmark"],
-    },
-  ],
-};
+type ScanState =
+  | { status: "loading"; report?: LiveStorageReport; error?: undefined }
+  | { status: "ready"; report: LiveStorageReport; error?: undefined }
+  | { status: "error"; report?: LiveStorageReport; error: string };
 
 function App() {
+  const [scan, setScan] = useState<ScanState>({ status: "loading" });
+
+  async function runScan() {
+    setScan((current) => ({ status: "loading", report: current.report }));
+    try {
+      const response = await fetch("/api/storage-cards", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Scan failed with HTTP ${response.status}`);
+      }
+      setScan({ status: "ready", report: payload });
+    } catch (error) {
+      setScan((current) => ({
+        status: "error",
+        report: current.report,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }
+
+  useEffect(() => {
+    runScan();
+  }, []);
+
+  const report = scan.report;
+  const devices = report?.devices ?? [];
+  const cards = report?.cards ?? [];
+  const usbCount = devices.filter((device) => device.transport === "usb").length;
+
   return (
     <main className="shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">Linkmetry prototype</p>
+          <p className="eyebrow">Linkmetry live prototype</p>
           <h1>Connection health, without the guessing.</h1>
           <p className="lede">
-            First UI pass for the Linux storage diagnosis flow. This renders the same
-            card model emitted by the Rust CLI, with safe benchmark context and evidence.
+            This view now calls the Rust Linux inspector on trav-dev and renders live storage/device-card data from sysfs instead of baked sample data.
           </p>
         </div>
-        <button className="scanButton">Run scan</button>
+        <button className="scanButton" onClick={runScan} disabled={scan.status === "loading"}>
+          {scan.status === "loading" ? "Scanning…" : "Run scan"}
+        </button>
       </section>
 
-      <DeviceSummary report={sampleReport} />
-      <BenchmarkPanel benchmark={sampleReport.benchmark} />
-      <EvidencePanel report={sampleReport} />
+      <section className="card scanStatusCard">
+        <div className="cardTopline">
+          <span className={`statusDot ${scan.status === "error" ? "warning" : scan.status === "ready" ? "good" : "info"}`} />
+          <span className="statusText">{scanStatusLabel(scan.status)}</span>
+        </div>
+        <div className="deviceHeader">
+          <div>
+            <h2>{cards.length} storage path{cards.length === 1 ? "" : "s"} detected</h2>
+            <p className="muted">
+              {usbCount} USB-backed · Platform: {report?.platform ?? "linux"}
+              {report?.generated_at ? ` · Refreshed ${new Date(report.generated_at).toLocaleTimeString()}` : ""}
+            </p>
+          </div>
+          <div className="badges">
+            <span>Live Rust output</span>
+            <span>Read-only scan</span>
+          </div>
+        </div>
+        {scan.status === "error" ? <p className="errorText">{scan.error}</p> : null}
+      </section>
+
+      {scan.status === "loading" && !report ? <LoadingCard /> : null}
+      {scan.status !== "loading" && cards.length === 0 ? <EmptyCard /> : null}
+
+      {cards.map((card, index) => (
+        <React.Fragment key={devices[index]?.dev_path ?? card.subtitle ?? card.title}>
+          <DeviceSummary card={card} device={devices[index]} />
+          <EvidencePanel device={devices[index]} />
+        </React.Fragment>
+      ))}
     </main>
   );
 }
 
-function DeviceSummary({ report }: { report: DiagnosisReport }) {
-  const verdict = report.card.primary_verdict;
+function LoadingCard() {
+  return (
+    <section className="card">
+      <p className="eyebrow">Scanning</p>
+      <h2>Asking the Rust inspector what is connected…</h2>
+      <p className="muted">This runs the Linkmetry CLI locally on trav-dev and returns normalized device cards.</p>
+    </section>
+  );
+}
+
+function EmptyCard() {
+  return (
+    <section className="card">
+      <p className="eyebrow">No storage devices</p>
+      <h2>No inspectable storage paths were returned.</h2>
+      <p className="muted">Plug in an external drive or confirm Linux exposes it under /sys/class/block.</p>
+    </section>
+  );
+}
+
+function DeviceSummary({ card, device }: { card: DeviceCard; device?: StorageDevice }) {
+  const verdict = card.primary_verdict;
 
   return (
     <section className="card deviceCard">
       <div className="cardTopline">
-        <span className={`statusDot ${report.card.status}`} />
-        <span className="statusText">{statusLabel(report.card.status)}</span>
+        <span className={`statusDot ${card.status}`} />
+        <span className="statusText">{statusLabel(card.status)}</span>
       </div>
       <div className="deviceHeader">
         <div>
-          <h2>{report.card.title}</h2>
-          <p>{report.card.subtitle}</p>
+          <h2>{card.title}</h2>
+          <p>{card.subtitle}</p>
         </div>
         <div className="badges">
-          {report.card.badges.map((badge) => (
+          {card.badges.map((badge) => (
             <span key={badge}>{badge}</span>
           ))}
         </div>
@@ -188,62 +197,40 @@ function DeviceSummary({ report }: { report: DiagnosisReport }) {
       ) : null}
 
       <dl className="factsGrid">
-        {report.card.facts.map((fact) => (
+        {card.facts.map((fact) => (
           <div key={fact.label}>
             <dt>{fact.label}</dt>
             <dd>{fact.value}</dd>
           </div>
         ))}
+        {device?.usb_device_id ? (
+          <div>
+            <dt>Topology</dt>
+            <dd>{device.usb_device_id}</dd>
+          </div>
+        ) : null}
       </dl>
     </section>
   );
 }
 
-function BenchmarkPanel({ benchmark }: { benchmark: BenchmarkResult }) {
-  const max = Math.max(...benchmark.runs.map((run) => run.mib_per_second));
+function EvidencePanel({ device }: { device?: StorageDevice }) {
+  const evidence = useMemo(() => device?.evidence ?? [], [device]);
 
-  return (
-    <section className="card splitCard">
-      <div>
-        <p className="eyebrow">Safe benchmark</p>
-        <h2>{benchmark.average_mib_per_second.toFixed(0)} MiB/s average read</h2>
-        <p className="muted">
-          Best run: {benchmark.best_mib_per_second.toFixed(0)} MiB/s · {benchmark.iterations} read-only passes
-        </p>
-        <ul className="caveats">
-          {benchmark.caveats.map((caveat) => (
-            <li key={caveat}>{caveat}</li>
-          ))}
-        </ul>
-      </div>
-      <div className="runs">
-        {benchmark.runs.map((run, index) => (
-          <div className="run" key={index}>
-            <div className="runLabel">
-              <span>Run {index + 1}</span>
-              <strong>{run.mib_per_second.toFixed(0)} MiB/s</strong>
-            </div>
-            <div className="barTrack">
-              <span style={{ width: `${(run.mib_per_second / max) * 100}%` }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
+  if (!device) return null;
 
-function EvidencePanel({ report }: { report: DiagnosisReport }) {
   return (
     <section className="card evidenceCard">
       <p className="eyebrow">Detected evidence</p>
-      <h2>Why Linkmetry thinks this path is healthy</h2>
+      <h2>What Linux exposed for {device.dev_path}</h2>
       <div className="evidenceList">
-        <EvidenceItem label="Target file" value={report.target} />
-        <EvidenceItem label="Storage path" value={`${report.storage.vendor ?? ""} ${report.storage.model ?? report.storage.dev_path}`.trim()} />
-        <EvidenceItem label="USB device id" value={report.storage.usb_device_id ?? "Unavailable"} />
-        <EvidenceItem label="Negotiated link" value={report.storage.usb_link_speed?.label ?? "Unavailable"} />
-        <EvidenceItem label="Mounted at" value={report.storage.mountpoints.join(", ")} />
+        <EvidenceItem label="Storage path" value={`${device.vendor ?? ""} ${device.model ?? device.dev_path}`.trim()} />
+        <EvidenceItem label="USB device id" value={device.usb_device_id ?? "Unavailable"} />
+        <EvidenceItem label="Negotiated link" value={device.usb_link_speed?.label ?? "Unavailable"} />
+        <EvidenceItem label="Mounted at" value={device.mountpoints.join(", ") || "Not mounted"} />
+        {evidence.slice(0, 8).map((item) => (
+          <EvidenceItem key={`${item.source}:${item.key}:${item.value}`} label={`${item.source}:${item.key}`} value={item.value} />
+        ))}
       </div>
     </section>
   );
@@ -256,6 +243,14 @@ function EvidenceItem({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function scanStatusLabel(status: ScanState["status"]) {
+  return {
+    loading: "Scanning live data",
+    ready: "Live data loaded",
+    error: "Live scan error",
+  }[status];
 }
 
 function statusLabel(status: StatusTone) {
