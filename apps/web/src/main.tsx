@@ -140,7 +140,7 @@ function App() {
   const storageCards = report?.storage.cards ?? [];
   const usbDevices = report?.usb.devices ?? [];
   const usbStorageCount = storageDevices.filter((device) => device.transport === "usb").length;
-  const highSpeedUsbCount = usbDevices.filter((device) => (device.negotiated_speed?.mbps ?? 0) > 480).length;
+  const humanDeviceCount = usbDevices.filter(isPrimaryUserDevice).length;
 
   const summary = report ? buildFriendlySummary(usbDevices, storageDevices) : null;
   const selectedDevice = selectedAction ? usbDevices.find((device) => device.id === selectedAction.deviceId) : undefined;
@@ -170,7 +170,7 @@ function App() {
           <div>
             <h2>{summary?.headline ?? `${usbDevices.length} connected device${usbDevices.length === 1 ? "" : "s"} found`}</h2>
             <p className="muted">
-              {summary?.subline ?? `${highSpeedUsbCount} high-speed USB · ${usbStorageCount} USB-backed storage`} · Platform: {report?.platform ?? "linux"}
+              {summary?.subline ?? `${humanDeviceCount} recognizable device${humanDeviceCount === 1 ? "" : "s"} · ${usbStorageCount} USB-backed storage`} · Platform: {report?.platform ?? "linux"}
               {report?.generated_at ? ` · Refreshed ${new Date(report.generated_at).toLocaleTimeString()}` : ""}
             </p>
           </div>
@@ -275,6 +275,8 @@ function PortFinderGuide({ devices, storageDevices, onRescan, scanning }: { devi
 function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
   const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)).sort(deviceImportanceSort), [devices]);
+  const primaryDevices = attachedDevices.filter(isPrimaryUserDevice);
+  const accessoryDevices = attachedDevices.filter((device) => !isPrimaryUserDevice(device));
   const storageByUsbId = useMemo(() => new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device])), [storageDevices]);
   const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
 
@@ -288,7 +290,7 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
         <div>
           <h3>Devices</h3>
           <div className="connectedDeviceList">
-            {attachedDevices.map((device) => (
+            {primaryDevices.map((device) => (
               <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{deviceName(device)}</strong>
@@ -301,6 +303,26 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
                 ) : null}
               </div>
             ))}
+          {accessoryDevices.length > 0 ? (
+            <details className="accessoryDisclosure">
+              <summary>
+                <span>Internal/accessory endpoints</span>
+                <strong>{accessoryDevices.length} extra USB endpoint{accessoryDevices.length === 1 ? "" : "s"}</strong>
+              </summary>
+              <p className="muted">These are real USB endpoints, but they are usually internal controllers or low-level accessories, not the main devices people think of first.</p>
+              <div className="connectedDeviceList compactAccessoryList">
+                {accessoryDevices.map((device) => (
+                  <div className="portDevice" key={device.id}>
+                    <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
+                    <strong>{deviceName(device)}</strong>
+                    <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id))}</p>
+                    <p className="pathIdLine"><span>Port/path ID</span> {device.topology_path ?? device.id}</p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+
           </div>
         </div>
       </div>
@@ -622,15 +644,16 @@ function InventoryGroup({
 
 function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: StorageDevice[]): FriendlySummaryData {
   const externalDrives = storageDevices.filter((device) => device.transport === "usb");
-  const fastDevices = usbDevices.filter((device) => (device.negotiated_speed?.mbps ?? 0) > 480);
+  const humanDevices = usbDevices.filter(isPrimaryUserDevice);
+  const fastDevices = humanDevices.filter((device) => (device.negotiated_speed?.mbps ?? 0) > 480);
   const slowStorage = externalDrives.filter((device) => (device.usb_link_speed?.mbps ?? Number.POSITIVE_INFINITY) <= 480);
   const fastestDrive = externalDrives
     .filter((device) => device.usb_link_speed?.mbps)
     .sort((a, b) => (b.usb_link_speed?.mbps ?? 0) - (a.usb_link_speed?.mbps ?? 0))[0];
 
   return {
-    headline: `${usbDevices.length} connected USB device${usbDevices.length === 1 ? "" : "s"} found`,
-    subline: `${fastDevices.length} fast connection${fastDevices.length === 1 ? "" : "s"} · ${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"}`,
+    headline: `${humanDevices.length} recognizable USB device${humanDevices.length === 1 ? "" : "s"} found`,
+    subline: `${fastDevices.length} fast recognizable connection${fastDevices.length === 1 ? "" : "s"} · ${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"} · ${usbDevices.length} raw USB entries in technical details`,
     cards: [
       {
         title: "Connection map",
@@ -646,8 +669,8 @@ function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: St
       },
       {
         title: "Control panel",
-        value: `${usbDevices.length} devices detected`,
-        note: "Linkmetry is becoming one place to inspect, understand, and troubleshoot USB ports and devices.",
+        value: `${humanDevices.length} recognizable device${humanDevices.length === 1 ? "" : "s"}`,
+        note: `${usbDevices.length} raw USB entries include internal hubs/controllers; those stay in technical details.`,
         tone: "info",
       },
     ],
@@ -678,6 +701,24 @@ function isDownstreamOf(deviceId: string, rootId: string) {
 
 function visiblePortCount(devices: DiagnosticDevice[]) {
   return buildConnectionMap(devices).length;
+}
+
+function isPrimaryUserDevice(device: DiagnosticDevice) {
+  if (!isHumanFacingDevice(device)) return false;
+  const label = `${device.manufacturer ?? ""} ${device.product ?? ""}`.toLowerCase();
+  const internalHints = ["lighting", "aura", "h150i", "controller", "node core", "node pro"];
+  if (internalHints.some((hint) => label.includes(hint))) return false;
+  if (["storage", "audio", "video", "network"].includes(device.kind)) return true;
+  const userHints = ["keyboard", "keychron", "mouse", "receiver", "scarlett", "audio", "webcam", "camera", "mic", "microphone"];
+  return userHints.some((hint) => label.includes(hint));
+}
+
+function isHumanFacingDevice(device: DiagnosticDevice) {
+  if (isPortOrPath(device)) return false;
+  const product = (device.product ?? "").toLowerCase();
+  if (!device.product && !device.manufacturer) return false;
+  if (product.includes("host controller")) return false;
+  return true;
 }
 
 function isPortOrPath(device: DiagnosticDevice) {

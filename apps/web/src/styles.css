@@ -225,3 +225,10 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .portDetailsDisclosure summary span { color: #93a4ba; font-size: 0.72rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
 .portDetailsDisclosure summary strong { color: #bfdbfe; font-size: 0.9rem; }
 .portDetailsDisclosure[open] summary { margin-bottom: 12px; }
+.accessoryDisclosure { margin-top: 14px; border: 1px solid rgba(148, 163, 184, 0.14); border-radius: 16px; padding: 12px; background: rgba(2, 6, 23, 0.22); }
+.accessoryDisclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; list-style: none; }
+.accessoryDisclosure summary::-webkit-details-marker { display: none; }
+.accessoryDisclosure summary span { color: #93a4ba; font-size: 0.7rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+.accessoryDisclosure summary strong { color: #bfdbfe; font-size: 0.86rem; }
+.compactAccessoryList { margin-top: 12px; }
+.compactAccessoryList .portDevice { background: rgba(15, 23, 42, 0.42); }
