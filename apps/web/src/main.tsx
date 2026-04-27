@@ -322,9 +322,6 @@ function handleDeviceAction(action: DeviceAction, deviceId: string, selectedActi
     return;
   }
   onAction({ deviceId, action });
-  if (action === "speed") {
-    window.setTimeout(() => document.getElementById("external-drive-diagnostics")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-  }
 }
 
 function availableActions(storageDevice?: StorageDevice): Array<{ label: string; action: DeviceAction; enabled: boolean; reason?: string }> {
@@ -339,6 +336,7 @@ function availableActions(storageDevice?: StorageDevice): Array<{ label: string;
 function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose, compact = false }: { action: DeviceAction; device: DiagnosticDevice; storageDevice?: StorageDevice; usbDevices: DiagnosticDevice[]; onClose: () => void; compact?: boolean }) {
   const path = buildConnectionPath(device.id, usbDevices);
   const explanation = explainDevice(device, storageDevice, path);
+  const bottleneck = findPathBottleneck(path);
 
   return (
     <section className={compact ? "actionPanel inlineActionPanel" : "card actionPanel"}>
@@ -367,6 +365,17 @@ function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose,
       {action === "path" ? (
         <div className="pathPanel">
           <p className="actionExplanation">{path.length > 1 ? `${deviceName(device)} is connected through ${path.length - 1} visible upstream USB step${path.length - 1 === 1 ? "" : "s"}.` : `${deviceName(device)} appears directly on this USB path.`}</p>
+          {bottleneck ? (
+            <div className="pathInsight warningInsight">
+              <strong>Possible bottleneck</strong>
+              <span>{bottleneck}</span>
+            </div>
+          ) : (
+            <div className="pathInsight">
+              <strong>No visible path bottleneck</strong>
+              <span>Every visible upstream step is at least as fast as this device, based on what Linux exposes.</span>
+            </div>
+          )}
           <ol className="pathSteps">
             {path.map((step, index) => (
               <li key={step.id}>
@@ -379,7 +388,7 @@ function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose,
       ) : null}
 
       {action === "speed" ? (
-        <p className="actionExplanation">Speed test is available in External drive diagnostics below. Use Auto-pick test file to run it without choosing a path manually.</p>
+        storageDevice ? <BenchmarkControl device={storageDevice} /> : <p className="actionExplanation">Speed test is currently available for external USB storage only.</p>
       ) : null}
     </section>
   );
@@ -390,12 +399,30 @@ function actionPanelTitle(action: DeviceAction) {
 }
 
 function explainDevice(device: DiagnosticDevice, storageDevice: StorageDevice | undefined, path: DiagnosticDevice[]) {
+  const speedLabel = device.negotiated_speed?.label ?? "an unknown USB speed";
+  const bottleneck = findPathBottleneck(path);
+
   if (storageDevice) {
-    return `${deviceName(device)} looks like an external storage device connected over ${device.negotiated_speed?.label ?? "an unknown USB speed"}. Linkmetry can inspect its connection path and run a safe read-only speed test.`;
+    const mount = benchmarkableMountpoints(storageDevice)[0] ?? storageDevice.mountpoints[0] ?? storageDevice.dev_path;
+    if (bottleneck) {
+      return `${deviceName(device)} is an external drive, but the visible USB path may be limiting it: ${bottleneck} It is available at ${mount}. Run the safe read test to compare real throughput with the negotiated link.`;
+    }
+    return `${deviceName(device)} is an external drive connected over ${speedLabel}. The visible path does not show an upstream bottleneck, so the next useful check is a safe read-only speed test from ${mount}.`;
   }
-  if (device.kind === "hub") return `${deviceName(device)} is a USB hub or controller path. It helps explain where other devices are connected, but it usually is not something you directly test.`;
-  if ((device.negotiated_speed?.mbps ?? 0) <= 12) return `${deviceName(device)} is a low-bandwidth USB device. That is normal for keyboards, receivers, lighting controllers, and similar accessories.`;
-  return `${deviceName(device)} is connected over ${device.negotiated_speed?.label ?? "USB"}. Linkmetry can show its details and where it sits in the USB connection path.${path.length > 1 ? ` It has ${path.length - 1} visible upstream step${path.length - 1 === 1 ? "" : "s"}.` : ""}`;
+
+  if (device.kind === "hub") {
+    return `${deviceName(device)} is part of the USB path, not usually the thing you test directly. It matters because anything downstream can only perform as well as this path allows.`;
+  }
+
+  if ((device.negotiated_speed?.mbps ?? 0) <= 12) {
+    return `${deviceName(device)} is a low-bandwidth USB device. That is normal for keyboards, receivers, lighting controllers, and similar accessories, so this is not automatically a problem.`;
+  }
+
+  if (bottleneck) {
+    return `${deviceName(device)} is connected over ${speedLabel}, but Linkmetry sees a slower upstream step: ${bottleneck}`;
+  }
+
+  return `${deviceName(device)} is connected over ${speedLabel}. Linkmetry does not see an obvious upstream bottleneck in the current Linux USB path.${path.length > 1 ? ` The visible path has ${path.length - 1} upstream step${path.length - 1 === 1 ? "" : "s"}.` : ""}`;
 }
 
 function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
