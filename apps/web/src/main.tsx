@@ -113,7 +113,7 @@ type DeviceAction = "explain" | "details" | "path" | "speed";
 type SelectedDeviceAction = { deviceId: string; action: DeviceAction };
 type PortLabels = Record<string, string>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
-type Page = "overview" | "drives";
+type Page = "overview" | "ports" | "drives";
 
 function App() {
   const [scan, setScan] = useState<ScanState>({ status: "idle" });
@@ -228,26 +228,41 @@ function App() {
       {scan.status === "idle" ? <PreScanCard onScan={runScan} /> : null}
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
-      {report ? <PageTabs page={page} onPage={setPage} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
+      {report ? <PageTabs page={page} onPage={setPage} portCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
       {page === "overview" ? (
         <>
           {summary ? <FriendlySummary summary={summary} /> : null}
-          {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
-          {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
+          {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
           {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
         </>
       ) : null}
+      {page === "ports" && report ? <PortMappingPage devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {page === "drives" && report ? <DriveDiagnosticsPage cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
     </main>
   );
 }
 
-function PageTabs({ page, onPage, driveCount }: { page: Page; onPage: (page: Page) => void; driveCount: number }) {
+function PageTabs({ page, onPage, portCount, driveCount }: { page: Page; onPage: (page: Page) => void; portCount: number; driveCount: number }) {
   return (
     <nav className="pageTabs" aria-label="Linkmetry sections">
       <button type="button" className={page === "overview" ? "active" : ""} onClick={() => onPage("overview")}>Overview</button>
+      <button type="button" className={page === "ports" ? "active" : ""} onClick={() => onPage("ports")}>Map ports{portCount ? ` (${portCount})` : ""}</button>
       <button type="button" className={page === "drives" ? "active" : ""} onClick={() => onPage("drives")}>Drive diagnostics{driveCount ? ` (${driveCount})` : ""}</button>
     </nav>
+  );
+}
+
+function PortMappingPage({ devices, storageDevices, portLabels, labelingSession, onStartLabeling, onStopLabeling, onExportLabels, onImportLabels, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onExportLabels: () => void; onImportLabels: (labels: PortLabels) => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
+  return (
+    <section className="portMappingPage">
+      <div className="sectionIntro">
+        <p className="eyebrow">Map ports</p>
+        <h2>Name physical USB ports.</h2>
+        <p className="muted">Use this page when you want labels like “Back bottom row, 2 over.” The overview stays focused on actual connected devices.</p>
+      </div>
+      <PortFinderGuide devices={devices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={onStartLabeling} onStopLabeling={onStopLabeling} onExportLabels={onExportLabels} onImportLabels={onImportLabels} onLabel={onLabel} onRescan={onRescan} scanning={scanning} />
+      <ConnectionMap devices={devices} storageDevices={storageDevices} portLabels={portLabels} onLabel={onLabel} selectedAction={null} onAction={() => undefined} showPortMapping />
+    </section>
   );
 }
 
@@ -392,7 +407,7 @@ function PortLabelBackup({ labelCount, onExport, onImport }: { labels: PortLabel
   );
 }
 
-function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedAction, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; onLabel: (pathId: string, label: string) => void; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
+function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedAction, onAction, showPortMapping = false }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; onLabel: (pathId: string, label: string) => void; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void; showPortMapping?: boolean }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
   const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)).sort(deviceImportanceSort), [devices]);
   const primaryDevices = attachedDevices.filter(isPrimaryUserDevice);
@@ -403,8 +418,8 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
   return (
     <section className="card connectionMapCard">
       <p className="eyebrow">Devices first</p>
-      <h2>Actual devices connected right now</h2>
-      <p className="muted inventoryIntro">Start here: these are the things you recognize — drives, keyboards, mice, audio interfaces, receivers, and accessories. Technical port/path IDs are shown only as supporting evidence.</p>
+      <h2>{showPortMapping ? "Devices available for port mapping" : "Actual devices connected right now"}</h2>
+      <p className="muted inventoryIntro">{showPortMapping ? "Use these devices to label physical ports. Move one device at a time, rescan, then name the physical location." : "Start here: these are the things you recognize — drives, keyboards, mice, audio interfaces, receivers, and accessories. Technical details stay hidden unless you open them."}</p>
 
       <div className="deviceFirstLayout">
         <div>
@@ -416,7 +431,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                 <strong>{deviceName(device)}</strong>
                 <p>{deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
-                <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} />
+                {showPortMapping ? <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} /> : null}
                 <details className="deviceMoreDetails">
                   <summary>Show more details</summary>
                   <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} />
@@ -425,8 +440,8 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                     <p>{devicePathId(device)}</p>
                   </details>
                 </details>
-                <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
-                {selectedAction?.deviceId === device.id ? (
+                {!showPortMapping ? <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} /> : null}
+                {!showPortMapping && selectedAction?.deviceId === device.id ? (
                   <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
                 ) : null}
               </div>
@@ -459,7 +474,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
         </div>
       </div>
 
-      <details className="portDetailsDisclosure">
+      <details className="portDetailsDisclosure" open={showPortMapping || undefined}>
         <summary>
           <span>Advanced · technical ports & paths</span>
           <strong>Show raw USB buses, hubs, and topology IDs</strong>

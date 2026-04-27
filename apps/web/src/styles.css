@@ -293,3 +293,4 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .pageTabs button { border: 1px solid rgba(125, 211, 252, 0.22); border-radius: 999px; padding: 10px 14px; color: #bfdbfe; background: rgba(14, 165, 233, 0.08); cursor: pointer; font-weight: 850; }
 .pageTabs button.active { color: #05111f; background: linear-gradient(135deg, #7dd3fc, #a7f3d0); border-color: transparent; }
 .driveDiagnosticsPage { margin-top: 20px; }
+.portMappingPage { display: grid; gap: 20px; }
