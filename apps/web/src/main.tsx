@@ -113,12 +113,14 @@ type DeviceAction = "explain" | "details" | "path" | "speed";
 type SelectedDeviceAction = { deviceId: string; action: DeviceAction };
 type PortLabels = Record<string, string>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
+type Page = "overview" | "drives";
 
 function App() {
   const [scan, setScan] = useState<ScanState>({ status: "idle" });
   const [selectedAction, setSelectedAction] = useState<SelectedDeviceAction | null>(null);
   const [portLabels, setPortLabels] = useState<PortLabels>(() => loadPortLabels());
   const [labelingSession, setLabelingSession] = useState<PortLabelingSession>({ active: false, baselinePathIds: [] });
+  const [page, setPage] = useState<Page>("overview");
 
   function savePortLabel(pathId: string, label: string) {
     setPortLabels((current) => {
@@ -226,12 +228,26 @@ function App() {
       {scan.status === "idle" ? <PreScanCard onScan={runScan} /> : null}
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
-      {summary ? <FriendlySummary summary={summary} /> : null}
-      {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
-      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
-      {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
-      {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
+      {report ? <PageTabs page={page} onPage={setPage} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
+      {page === "overview" ? (
+        <>
+          {summary ? <FriendlySummary summary={summary} /> : null}
+          {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
+          {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
+          {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
+        </>
+      ) : null}
+      {page === "drives" && report ? <DriveDiagnosticsPage cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
     </main>
+  );
+}
+
+function PageTabs({ page, onPage, driveCount }: { page: Page; onPage: (page: Page) => void; driveCount: number }) {
+  return (
+    <nav className="pageTabs" aria-label="Linkmetry sections">
+      <button type="button" className={page === "overview" ? "active" : ""} onClick={() => onPage("overview")}>Overview</button>
+      <button type="button" className={page === "drives" ? "active" : ""} onClick={() => onPage("drives")}>Drive diagnostics{driveCount ? ` (${driveCount})` : ""}</button>
+    </nav>
   );
 }
 
@@ -735,17 +751,17 @@ function explainDevice(device: DiagnosticDevice, storageDevice: StorageDevice | 
   return `${deviceName(device)} is connected over ${speedLabel}. Linkmetry does not see an obvious upstream bottleneck in the current Linux USB path.${path.length > 1 ? ` The visible path has ${path.length - 1} upstream step${path.length - 1 === 1 ? "" : "s"}.` : ""}`;
 }
 
-function DevicesToCheck({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
+function DriveDiagnosticsPage({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
   const externalIndexes = storageDevices
     .map((device, index) => ({ device, index }))
     .filter(({ device }) => device.transport === "usb");
 
   return (
-    <section className="deviceCheckSection" id="external-drive-diagnostics">
+    <section className="deviceCheckSection driveDiagnosticsPage" id="external-drive-diagnostics">
       <div className="sectionIntro">
-        <p className="eyebrow">Secondary tool</p>
-        <h2>External drive diagnostics</h2>
-        <p className="muted">Extra tools for storage devices, like speed testing. This is a secondary diagnostic workflow under the main connection map.</p>
+        <p className="eyebrow">Drive diagnostics</p>
+        <h2>Test external drives separately.</h2>
+        <p className="muted">This page is for deeper storage checks like safe read tests. The main overview stays focused on what is connected and where.</p>
       </div>
       {externalIndexes.length > 0 ? (
         externalIndexes.map(({ device, index }) => (
