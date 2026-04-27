@@ -104,6 +104,7 @@ type LiveScanReport = {
 };
 
 type ScanState =
+  | { status: "idle"; report?: undefined; error?: undefined }
   | { status: "loading"; report?: LiveScanReport; error?: undefined }
   | { status: "ready"; report: LiveScanReport; error?: undefined }
   | { status: "error"; report?: LiveScanReport; error: string };
@@ -114,7 +115,7 @@ type PortLabels = Record<string, string>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
 
 function App() {
-  const [scan, setScan] = useState<ScanState>({ status: "loading" });
+  const [scan, setScan] = useState<ScanState>({ status: "idle" });
   const [selectedAction, setSelectedAction] = useState<SelectedDeviceAction | null>(null);
   const [portLabels, setPortLabels] = useState<PortLabels>(() => loadPortLabels());
   const [labelingSession, setLabelingSession] = useState<PortLabelingSession>({ active: false, baselinePathIds: [] });
@@ -171,9 +172,6 @@ function App() {
     }
   }
 
-  useEffect(() => {
-    runScan();
-  }, []);
 
   const report = scan.report;
   const storageDevices = report?.storage.devices ?? [];
@@ -208,10 +206,9 @@ function App() {
         </div>
         <div className="deviceHeader">
           <div>
-            <h2>{summary?.headline ?? `${usbDevices.length} connected device${usbDevices.length === 1 ? "" : "s"} found`}</h2>
+            <h2>{summary?.headline ?? "Ready to scan your USB devices"}</h2>
             <p className="muted">
-              {summary?.subline ?? `${humanDeviceCount} recognizable device${humanDeviceCount === 1 ? "" : "s"} · ${usbStorageCount} USB-backed storage`} · Platform: {report?.platform ?? "linux"}
-              {report?.generated_at ? ` · Refreshed ${new Date(report.generated_at).toLocaleTimeString()}` : ""}
+              {summary?.subline ?? "Run a safe read-only scan when you are ready. Nothing is benchmarked or changed automatically."}{report?.generated_at ? ` · Refreshed ${new Date(report.generated_at).toLocaleTimeString()}` : ""}
             </p>
           </div>
           <div className="badges">
@@ -223,6 +220,7 @@ function App() {
         {scan.status === "error" ? <p className="errorText">{scan.error}</p> : null}
       </section>
 
+      {scan.status === "idle" ? <PreScanCard onScan={runScan} /> : null}
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
@@ -231,6 +229,17 @@ function App() {
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
+  );
+}
+
+function PreScanCard({ onScan }: { onScan: () => void }) {
+  return (
+    <section className="card preScanCard">
+      <p className="eyebrow">Start here</p>
+      <h2>Run a scan when you are ready.</h2>
+      <p className="muted">Linkmetry will look at connected USB devices and external drives, then explain the results in normal language. Advanced technical details stay hidden unless you open them.</p>
+      <button className="scanButton" onClick={onScan}>Run scan</button>
+    </section>
   );
 }
 
@@ -1280,7 +1289,7 @@ function formatBytes(bytes: number) {
 }
 
 function scanStatusLabel(status: ScanState["status"]) {
-  return { loading: "Scanning live data", ready: "Live data loaded", error: "Live scan error" }[status];
+  return { idle: "Ready to scan", loading: "Scanning live data", ready: "Live data loaded", error: "Live scan error" }[status];
 }
 
 function statusLabel(status: StatusTone) {

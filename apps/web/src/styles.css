@@ -278,3 +278,6 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .deviceMoreDetails > summary { cursor: pointer; color: #bfdbfe; font-size: 0.78rem; font-weight: 850; list-style: none; }
 .deviceMoreDetails > summary::-webkit-details-marker { display: none; }
 .deviceMoreDetails[open] > summary { margin-bottom: 8px; color: #d1fae5; }
+.preScanCard { text-align: center; padding: 34px; }
+.preScanCard h2 { margin-bottom: 10px; }
+.preScanCard .scanButton { margin-top: 18px; }
