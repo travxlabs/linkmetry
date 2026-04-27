@@ -244,3 +244,11 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .portLabelEditor button { border: 1px solid rgba(125, 211, 252, 0.24); border-radius: 999px; padding: 8px 11px; color: #05111f; background: linear-gradient(135deg, #7dd3fc, #a7f3d0); cursor: pointer; font-weight: 850; }
 .portLabelEditor .plainButton { color: #bfdbfe; background: rgba(15, 23, 42, 0.72); }
 @media (max-width: 680px) { .portLabelEditor { grid-template-columns: 1fr; } }
+.portFinderActions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.labelingStatus { margin-top: 14px; border: 1px solid rgba(125, 211, 252, 0.2); border-radius: 16px; padding: 13px 14px; background: rgba(14, 165, 233, 0.08); }
+.labelingStatus strong { display: block; color: #bfdbfe; }
+.labelingStatus p { margin: 5px 0 0; color: #a8b7ca; line-height: 1.45; }
+.labelingStatus.good { border-color: rgba(52, 211, 153, 0.3); background: rgba(16, 185, 129, 0.1); }
+.labelingStatus.good strong { color: #86efac; }
+.portFinderExample.newPathCandidate { border-color: rgba(52, 211, 153, 0.45); box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.08); }
+@media (max-width: 780px) { .portFinderActions { justify-content: flex-start; } }

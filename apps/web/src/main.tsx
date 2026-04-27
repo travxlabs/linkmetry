@@ -111,11 +111,13 @@ type ScanState =
 type DeviceAction = "explain" | "details" | "path" | "speed";
 type SelectedDeviceAction = { deviceId: string; action: DeviceAction };
 type PortLabels = Record<string, string>;
+type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
 
 function App() {
   const [scan, setScan] = useState<ScanState>({ status: "loading" });
   const [selectedAction, setSelectedAction] = useState<SelectedDeviceAction | null>(null);
   const [portLabels, setPortLabels] = useState<PortLabels>(() => loadPortLabels());
+  const [labelingSession, setLabelingSession] = useState<PortLabelingSession>({ active: false, baselinePathIds: [] });
 
   function savePortLabel(pathId: string, label: string) {
     setPortLabels((current) => {
@@ -126,6 +128,14 @@ function App() {
       window.localStorage.setItem("linkmetry.portLabels", JSON.stringify(next));
       return next;
     });
+  }
+
+  function startPortLabeling() {
+    setLabelingSession({ active: true, baselinePathIds: usbDevices.filter(isPrimaryUserDevice).map(devicePathId) });
+  }
+
+  function stopPortLabeling() {
+    setLabelingSession({ active: false, baselinePathIds: [] });
   }
 
   async function runScan() {
@@ -200,7 +210,7 @@ function App() {
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
       {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
-      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
+      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
@@ -251,13 +261,16 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   );
 }
 
-function PortFinderGuide({ devices, storageDevices, portLabels, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
+function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession, onStartLabeling, onStopLabeling, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
   const storageByUsbId = new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device]));
   const candidates = devices
-    .filter((device) => !isPortOrPath(device))
+    .filter(isPrimaryUserDevice)
     .sort(deviceImportanceSort)
     .slice(0, 4);
-  const best = candidates.find((device) => storageByUsbId.has(device.id)) ?? candidates[0];
+  const changedCandidates = labelingSession.active
+    ? candidates.filter((device) => !labelingSession.baselinePathIds.includes(devicePathId(device)))
+    : [];
+  const best = changedCandidates[0] ?? candidates.find((device) => storageByUsbId.has(device.id)) ?? candidates[0];
 
   return (
     <section className="card portFinderCard">
@@ -267,19 +280,28 @@ function PortFinderGuide({ devices, storageDevices, portLabels, onLabel, onResca
           <h2>Map real ports by moving one device at a time.</h2>
           <p className="muted">Operating systems expose USB topology IDs like <strong>2-7.2</strong>, not friendly labels like “front-left USB-C.” Linkmetry can still help you identify them safely.</p>
         </div>
-        <button className="scanButton small secondary" onClick={onRescan} disabled={scanning}>{scanning ? "Scanning…" : "Rescan after moving device"}</button>
+        <div className="portFinderActions">
+          {labelingSession.active ? <button className="scanButton small secondary" onClick={onStopLabeling}>Stop labeling</button> : <button className="scanButton small secondary" onClick={onStartLabeling}>Start port labeling</button>}
+          <button className="scanButton small secondary" onClick={onRescan} disabled={scanning}>{scanning ? "Scanning…" : "Rescan after moving device"}</button>
+        </div>
       </div>
       <div className="portFinderSteps">
-        <div><span>1</span><strong>Pick one device</strong><p>Use something obvious like the T7, a flash drive, keyboard, or mouse.</p></div>
-        <div><span>2</span><strong>Move it to a port</strong><p>Unplug it, plug it into the physical port you want to identify, then rescan.</p></div>
-        <div><span>3</span><strong>Record the path ID</strong><p>The changed topology ID is that physical port/path. Rename it later once labels exist.</p></div>
+        <div><span>1</span><strong>Start labeling</strong><p>Linkmetry snapshots the current device paths.</p></div>
+        <div><span>2</span><strong>Move one device</strong><p>Plug the T7, flash drive, keyboard, or mouse into the physical port you want to name.</p></div>
+        <div><span>3</span><strong>Rescan and name it</strong><p>When a new path appears, label it with a friendly name like Front USB-C.</p></div>
       </div>
+      {labelingSession.active ? (
+        <div className={changedCandidates.length > 0 ? "labelingStatus good" : "labelingStatus"}>
+          <strong>{changedCandidates.length > 0 ? "New path candidate found" : "Labeling mode is active"}</strong>
+          <p>{changedCandidates.length > 0 ? "Name the highlighted path below, then move to the next physical port." : "Move exactly one device, then click Rescan after moving device."}</p>
+        </div>
+      ) : null}
       {best ? (
-        <div className="portFinderExample">
-          <span>Current example</span>
+        <div className={`portFinderExample ${changedCandidates.includes(best) ? "newPathCandidate" : ""}`}>
+          <span>{changedCandidates.includes(best) ? "New path candidate" : "Current example"}</span>
           <strong>{deviceName(best)} → {friendlyPortName(best, portLabels)}</strong>
           <p>{storageByUsbId.get(best.id)?.mountpoints[0] ? `Mounted at ${storageByUsbId.get(best.id)?.mountpoints[0]}. ` : ""}If you move this device and rescan, this path should change, which tells you which physical port you used.</p>
-          <PortLabelEditor pathId={best.topology_path ?? best.id} portLabels={portLabels} onLabel={onLabel} />
+          <PortLabelEditor pathId={devicePathId(best)} portLabels={portLabels} onLabel={onLabel} />
         </div>
       ) : null}
     </section>
@@ -309,8 +331,8 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{deviceName(device)}</strong>
                 <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
-                <PortLabelEditor pathId={device.topology_path ?? device.id} portLabels={portLabels} onLabel={onLabel} />
-                <p className="pathIdLine"><span>Evidence path</span> {device.topology_path ?? device.id}</p>
+                <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} />
+                <p className="pathIdLine"><span>Evidence path</span> {devicePathId(device)}</p>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
                 <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
                 {selectedAction?.deviceId === device.id ? (
@@ -331,7 +353,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                     <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                     <strong>{deviceName(device)}</strong>
                     <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
-                    <p className="pathIdLine"><span>Evidence path</span> {device.topology_path ?? device.id}</p>
+                    <p className="pathIdLine"><span>Evidence path</span> {devicePathId(device)}</p>
                   </div>
                 ))}
               </div>
@@ -403,8 +425,12 @@ function deviceConnectionSummary(device: DiagnosticDevice, storageDevice: Storag
 }
 
 function friendlyPortName(device: DiagnosticDevice, portLabels: PortLabels) {
-  const pathId = device.topology_path ?? device.id;
+  const pathId = devicePathId(device);
   return portLabels[pathId] ? `${portLabels[pathId]} (${pathId})` : `path ${pathId}`;
+}
+
+function devicePathId(device: DiagnosticDevice) {
+  return device.topology_path ?? device.id;
 }
 
 function PortLabelEditor({ pathId, portLabels, onLabel }: { pathId: string; portLabels: PortLabels; onLabel: (pathId: string, label: string) => void }) {
