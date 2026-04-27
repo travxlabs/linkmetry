@@ -384,14 +384,17 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
               <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{deviceName(device)}</strong>
-                <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
-                <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} />
-                <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} />
-                <details className="evidencePathDisclosure">
-                  <summary>Show technical evidence path</summary>
-                  <p>{devicePathId(device)}</p>
-                </details>
+                <p>{deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
+                <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} />
+                <details className="deviceMoreDetails">
+                  <summary>Show more details</summary>
+                  <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} />
+                  <details className="evidencePathDisclosure">
+                    <summary>Show technical evidence path</summary>
+                    <p>{devicePathId(device)}</p>
+                  </details>
+                </details>
                 <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
                 {selectedAction?.deviceId === device.id ? (
                   <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
@@ -537,7 +540,7 @@ function PortSpeedEvidence({ device, storageDevice, compact = false }: { device:
 
   return (
     <div className={`portSpeedEvidence ${tone} ${compact ? "compact" : ""}`}>
-      <span>{title}</span>
+      <span>Advanced · {title}</span>
       <strong>{speed?.label ?? "Speed unavailable"}</strong>
       <p>{message}</p>
     </div>

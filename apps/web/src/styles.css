@@ -274,3 +274,7 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .evidencePathDisclosure summary { cursor: pointer; color: #7dd3fc; font-size: 0.74rem; font-weight: 900; list-style: none; }
 .evidencePathDisclosure summary::-webkit-details-marker { display: none; }
 .evidencePathDisclosure p { margin: 6px 0 0 !important; color: #94a3b8 !important; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.78rem !important; }
+.deviceMoreDetails { margin-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.12); padding-top: 9px; }
+.deviceMoreDetails > summary { cursor: pointer; color: #bfdbfe; font-size: 0.78rem; font-weight: 850; list-style: none; }
+.deviceMoreDetails > summary::-webkit-details-marker { display: none; }
+.deviceMoreDetails[open] > summary { margin-bottom: 8px; color: #d1fae5; }
