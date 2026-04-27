@@ -258,6 +258,7 @@ function App() {
       {page === "overview" ? (
         <>
           {summary ? <FriendlySummary summary={summary} /> : null}
+          {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
           {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
           {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
         </>
@@ -275,6 +276,23 @@ function PageTabs({ page, onPage, portCount, driveCount }: { page: Page; onPage:
       <button type="button" className={page === "ports" ? "active" : ""} onClick={() => onPage("ports")}>Map ports{portCount ? ` (${portCount})` : ""}</button>
       <button type="button" className={page === "drives" ? "active" : ""} onClick={() => onPage("drives")}>Drive diagnostics{driveCount ? ` (${driveCount})` : ""}</button>
     </nav>
+  );
+}
+
+function OverviewNextActions({ onPage, portLabelCount, driveCount }: { onPage: (page: Page) => void; portLabelCount: number; driveCount: number }) {
+  return (
+    <section className="overviewActions">
+      <button className="overviewActionCard" type="button" onClick={() => onPage("ports")}>
+        <span>Map ports</span>
+        <strong>{portLabelCount ? `${portLabelCount} saved label${portLabelCount === 1 ? "" : "s"}` : "Name your physical USB ports"}</strong>
+        <p>Build a human map like “back bottom row, 2 over,” and verify USB 3 capability with the T7.</p>
+      </button>
+      <button className="overviewActionCard" type="button" onClick={() => onPage("drives")}>
+        <span>Drive diagnostics</span>
+        <strong>{driveCount ? `${driveCount} external drive${driveCount === 1 ? "" : "s"} found` : "No external drives found"}</strong>
+        <p>Run deeper storage checks separately from the main device overview.</p>
+      </button>
+    </section>
   );
 }
 
@@ -944,24 +962,24 @@ function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: St
 
   return {
     headline: `${humanDevices.length} recognizable USB device${humanDevices.length === 1 ? "" : "s"} found`,
-    subline: `${fastDevices.length} fast recognizable connection${fastDevices.length === 1 ? "" : "s"} · ${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"} · ${usbDevices.length} raw USB entries in technical details`,
+    subline: `${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"} · ${fastDevices.length} fast connection${fastDevices.length === 1 ? "" : "s"} · advanced details available`,
     cards: [
       {
-        title: "Connection map",
-        value: `${visiblePortCount(usbDevices)} visible USB path${visiblePortCount(usbDevices) === 1 ? "" : "s"}`,
-        note: "See what is connected where, including hubs and downstream devices.",
+        title: "Devices",
+        value: `${humanDevices.length} recognizable item${humanDevices.length === 1 ? "" : "s"}`,
+        note: "These are the things a person would recognize, not every internal USB part.",
         tone: "info",
       },
       {
-        title: "Possible issue",
-        value: slowStorage.length > 0 ? `${slowStorage.length} slow storage path${slowStorage.length === 1 ? "" : "s"}` : "No obvious slow storage path",
-        note: slowStorage.length > 0 ? "At least one external drive appears to be on a USB 2.0-class path." : "No external storage path is obviously capped at USB 2.0 speed.",
+        title: "Attention",
+        value: slowStorage.length > 0 ? `${slowStorage.length} drive may be slow` : "Nothing obvious to fix",
+        note: slowStorage.length > 0 ? "A drive may be using a slower USB 2-class connection." : "No external drive is clearly stuck on a slow connection.",
         tone: slowStorage.length > 0 ? "warning" : "good",
       },
       {
-        title: "Control panel",
-        value: `${humanDevices.length} recognizable device${humanDevices.length === 1 ? "" : "s"}`,
-        note: `${usbDevices.length} raw USB entries include internal hubs/controllers; those stay in technical details.`,
+        title: "Next steps",
+        value: "Pick a workflow",
+        note: "Map physical ports or diagnose drives only when you need those deeper tools.",
         tone: "info",
       },
     ],
