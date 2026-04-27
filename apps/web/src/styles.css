@@ -252,3 +252,12 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .labelingStatus.good strong { color: #86efac; }
 .portFinderExample.newPathCandidate { border-color: rgba(52, 211, 153, 0.45); box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.08); }
 @media (max-width: 780px) { .portFinderActions { justify-content: flex-start; } }
+.portLabelBackup { margin-top: 14px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 18px; padding: 14px; background: rgba(2, 6, 23, 0.3); display: grid; gap: 12px; }
+.portLabelBackup span { display: block; color: #93a4ba; font-size: 0.7rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+.portLabelBackup strong { display: block; margin-top: 4px; color: #edf5ff; }
+.portLabelBackup p { margin: 5px 0 0; color: #a8b7ca; line-height: 1.45; font-size: 0.88rem; }
+.portLabelBackupActions { display: flex; flex-wrap: wrap; gap: 10px; }
+.portLabelBackupActions button, .portLabelBackupActions label { border: 1px solid rgba(125, 211, 252, 0.24); border-radius: 999px; padding: 8px 11px; color: #bfdbfe; background: rgba(14, 165, 233, 0.08); cursor: pointer; font-size: 0.78rem; font-weight: 850; }
+.portLabelBackupActions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.portLabelBackupActions input { display: none; }
+.portLabelBackupStatus { color: #d1fae5 !important; }

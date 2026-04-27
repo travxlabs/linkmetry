@@ -138,6 +138,23 @@ function App() {
     setLabelingSession({ active: false, baselinePathIds: [] });
   }
 
+  function exportPortLabels() {
+    const payload = JSON.stringify(portLabels, null, 2);
+    navigator.clipboard?.writeText(payload).catch(() => undefined);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "linkmetry-port-labels.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importPortLabels(labels: PortLabels) {
+    setPortLabels(labels);
+    window.localStorage.setItem("linkmetry.portLabels", JSON.stringify(labels));
+  }
+
   async function runScan() {
     setScan((current) => ({ status: "loading", report: current.report }));
     try {
@@ -210,7 +227,7 @@ function App() {
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
       {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
-      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
+      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
@@ -261,7 +278,7 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   );
 }
 
-function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession, onStartLabeling, onStopLabeling, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
+function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession, onStartLabeling, onStopLabeling, onExportLabels, onImportLabels, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onExportLabels: () => void; onImportLabels: (labels: PortLabels) => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
   const storageByUsbId = new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device]));
   const candidates = devices
     .filter(isPrimaryUserDevice)
@@ -271,6 +288,7 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
     ? candidates.filter((device) => !labelingSession.baselinePathIds.includes(devicePathId(device)))
     : [];
   const best = changedCandidates[0] ?? candidates.find((device) => storageByUsbId.has(device.id)) ?? candidates[0];
+  const labelCount = Object.keys(portLabels).length;
 
   return (
     <section className="card portFinderCard">
@@ -304,7 +322,43 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
           <PortLabelEditor pathId={devicePathId(best)} portLabels={portLabels} onLabel={onLabel} />
         </div>
       ) : null}
+      <PortLabelBackup labels={portLabels} labelCount={labelCount} onExport={onExportLabels} onImport={onImportLabels} />
     </section>
+  );
+}
+
+function PortLabelBackup({ labelCount, onExport, onImport }: { labels: PortLabels; labelCount: number; onExport: () => void; onImport: (labels: PortLabels) => void }) {
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function handleImport(file: File | undefined) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as PortLabels;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Expected a JSON object");
+      onImport(parsed);
+      setStatus(`Imported ${Object.keys(parsed).length} label${Object.keys(parsed).length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? `Import failed: ${error.message}` : "Import failed.");
+    }
+  }
+
+  return (
+    <div className="portLabelBackup">
+      <div>
+        <span>Browser-local labels</span>
+        <strong>{labelCount} saved label{labelCount === 1 ? "" : "s"}</strong>
+        <p>Prototype labels are saved in this browser. Export a backup before clearing cache or switching browsers.</p>
+      </div>
+      <div className="portLabelBackupActions">
+        <button type="button" onClick={onExport} disabled={labelCount === 0}>Export labels</button>
+        <label>
+          Import labels
+          <input type="file" accept="application/json,.json" onChange={(event) => handleImport(event.target.files?.[0])} />
+        </label>
+      </div>
+      {status ? <p className="portLabelBackupStatus">{status}</p> : null}
+    </div>
   );
 }
 
