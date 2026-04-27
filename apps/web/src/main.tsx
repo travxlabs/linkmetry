@@ -239,7 +239,7 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
 
 function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
-  const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)), [devices]);
+  const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)).sort(deviceImportanceSort), [devices]);
   const storageByUsbId = useMemo(() => new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device])), [storageDevices]);
   const externalStorageIds = new Set(storageDevices.map((device) => device.usb_device_id).filter(Boolean));
 
@@ -263,7 +263,7 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
                   </div>
                   <em>{port.root.negotiated_speed?.generation ?? port.root.negotiated_speed?.label ?? "speed unknown"}</em>
                 </div>
-                <p className="muted portCount">{port.children.length} connected device{port.children.length === 1 ? "" : "s"} on this path</p>
+                <p className="muted portCount">{summarizePort(port.children)}</p>
               </article>
             ))}
           </div>
@@ -274,9 +274,9 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
           <div className="connectedDeviceList">
             {attachedDevices.map((device) => (
               <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
-                <span>{kindLabel(device.kind)}</span>
+                <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{deviceName(device)}</strong>
-                <p><SpeedBadge speed={device.negotiated_speed} /> connected on {device.topology_path ?? device.id}</p>
+                <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id))}</p>
                 <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
                 {selectedAction?.deviceId === device.id ? (
                   <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
@@ -295,6 +295,36 @@ function SpeedBadge({ speed }: { speed?: LinkSpeed }) {
   const tone = speed?.is_usb3_or_better ? "usb3" : speed?.mbps && speed.mbps <= 480 ? "usb2" : "unknown";
   return <span className={`speedBadge ${tone}`}>{label}</span>;
 }
+
+function summarizePort(children: DiagnosticDevice[]) {
+  const visible = children.filter((device) => !isPortOrPath(device));
+  const highSpeed = visible.filter((device) => (device.negotiated_speed?.mbps ?? 0) > 480).length;
+  const storage = visible.filter((device) => device.kind === "storage").length;
+  const lowBandwidth = visible.filter((device) => (device.negotiated_speed?.mbps ?? 0) <= 12).length;
+  const parts = [`${visible.length} connected device${visible.length === 1 ? "" : "s"}`];
+  if (storage) parts.push(`${storage} drive${storage === 1 ? "" : "s"}`);
+  if (highSpeed) parts.push(`${highSpeed} high-speed`);
+  if (lowBandwidth && lowBandwidth === visible.length) parts.push("low-bandwidth path");
+  return parts.join(" · ");
+}
+
+function deviceRoleLabel(device: DiagnosticDevice, storageDevice?: StorageDevice) {
+  if (storageDevice?.transport === "usb") return "external drive";
+  if (device.kind === "human-interface") return "input/accessory";
+  if ((device.negotiated_speed?.mbps ?? 0) <= 12) return "low-bandwidth accessory";
+  return kindLabel(device.kind);
+}
+
+function deviceConnectionSummary(device: DiagnosticDevice, storageDevice?: StorageDevice) {
+  const location = device.topology_path ?? device.id;
+  if (storageDevice?.transport === "usb") {
+    const mount = benchmarkableMountpoints(storageDevice)[0] ?? storageDevice.mountpoints[0];
+    return `external storage on ${location}${mount ? ` · mounted at ${mount}` : ""}`;
+  }
+  if ((device.negotiated_speed?.mbps ?? 0) <= 12) return `normal for simple accessories · ${location}`;
+  return `connected on ${location}`;
+}
+
 
 function DeviceActions({ device, storageDevice, selectedAction, onAction }: { device: DiagnosticDevice; storageDevice?: StorageDevice; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
   const actions = availableActions(storageDevice);
@@ -931,6 +961,18 @@ function benchmarkableMountpoints(device: StorageDevice) {
     if (mountpoint.startsWith("/app/")) return false;
     return mountpoint.startsWith("/mnt/") || mountpoint.startsWith("/home/");
   });
+}
+
+function deviceImportanceSort(a: DiagnosticDevice, b: DiagnosticDevice) {
+  return devicePriority(b) - devicePriority(a) || sortSpeed(b) - sortSpeed(a) || deviceName(a).localeCompare(deviceName(b));
+}
+
+function devicePriority(device: DiagnosticDevice) {
+  if (device.kind === "storage") return 100;
+  if (["audio", "video", "network"].includes(device.kind)) return 80;
+  if ((device.negotiated_speed?.mbps ?? 0) > 480) return 70;
+  if ((device.negotiated_speed?.mbps ?? 0) <= 12) return 20;
+  return 40;
 }
 
 function sortSpeed(device: DiagnosticDevice) {
