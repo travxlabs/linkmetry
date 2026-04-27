@@ -202,3 +202,18 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .inlineVerdict.warning { border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.1); }
 .inlineVerdict.warning span { color: #fde68a; }
 .inlineVerdict.info span { color: #93c5fd; }
+.portFinderCard { margin-top: 20px; }
+.portFinderHeader { display: flex; justify-content: space-between; gap: 22px; align-items: start; }
+.portFinderHeader .muted strong { color: #cfe8ff; font-weight: 900; }
+.portFinderSteps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.portFinderSteps div { border-radius: 18px; padding: 15px; background: rgba(2, 6, 23, 0.36); border: 1px solid rgba(148, 163, 184, 0.14); }
+.portFinderSteps span { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 999px; color: #05111f; background: #7dd3fc; font-weight: 950; font-size: 0.8rem; }
+.portFinderSteps strong { display: block; margin-top: 10px; color: #edf5ff; }
+.portFinderSteps p { margin: 6px 0 0; color: #a8b7ca; line-height: 1.45; font-size: 0.9rem; }
+.portFinderExample { margin-top: 14px; border-radius: 18px; padding: 15px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(52, 211, 153, 0.22); }
+.portFinderExample span { display: block; color: #86efac; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.portFinderExample strong { display: block; margin-top: 5px; color: #edf5ff; }
+.portFinderExample p { margin: 6px 0 0; color: #a8b7ca; line-height: 1.45; }
+.pathIdLine { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 7px !important; color: #cbd5e1 !important; }
+.pathIdLine span { color: #7dd3fc; font-size: 0.68rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+@media (max-width: 780px) { .portFinderHeader { flex-direction: column; } .portFinderSteps { grid-template-columns: 1fr; } }

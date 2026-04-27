@@ -186,6 +186,7 @@ function App() {
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
+      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
@@ -237,6 +238,40 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   );
 }
 
+function PortFinderGuide({ devices, storageDevices, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; onRescan: () => void; scanning: boolean }) {
+  const storageByUsbId = new Map(storageDevices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device]));
+  const candidates = devices
+    .filter((device) => !isPortOrPath(device))
+    .sort(deviceImportanceSort)
+    .slice(0, 4);
+  const best = candidates.find((device) => storageByUsbId.has(device.id)) ?? candidates[0];
+
+  return (
+    <section className="card portFinderCard">
+      <div className="portFinderHeader">
+        <div>
+          <p className="eyebrow">Find the physical port</p>
+          <h2>Map real ports by moving one device at a time.</h2>
+          <p className="muted">Operating systems expose USB topology IDs like <strong>2-7.2</strong>, not friendly labels like “front-left USB-C.” Linkmetry can still help you identify them safely.</p>
+        </div>
+        <button className="scanButton small secondary" onClick={onRescan} disabled={scanning}>{scanning ? "Scanning…" : "Rescan after moving device"}</button>
+      </div>
+      <div className="portFinderSteps">
+        <div><span>1</span><strong>Pick one device</strong><p>Use something obvious like the T7, a flash drive, keyboard, or mouse.</p></div>
+        <div><span>2</span><strong>Move it to a port</strong><p>Unplug it, plug it into the physical port you want to identify, then rescan.</p></div>
+        <div><span>3</span><strong>Record the path ID</strong><p>The changed topology ID is that physical port/path. Rename it later once labels exist.</p></div>
+      </div>
+      {best ? (
+        <div className="portFinderExample">
+          <span>Current example</span>
+          <strong>{deviceName(best)} → path {best.topology_path ?? best.id}</strong>
+          <p>{storageByUsbId.get(best.id)?.mountpoints[0] ? `Mounted at ${storageByUsbId.get(best.id)?.mountpoints[0]}. ` : ""}If you move this device and rescan, this path should change, which tells you which physical port you used.</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
   const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)).sort(deviceImportanceSort), [devices]);
@@ -277,6 +312,7 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{deviceName(device)}</strong>
                 <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id))}</p>
+                <p className="pathIdLine"><span>Port/path ID</span> {device.topology_path ?? device.id}</p>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
                 <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
                 {selectedAction?.deviceId === device.id ? (
