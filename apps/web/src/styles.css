@@ -235,3 +235,12 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .advancedHint { color: #94a3b8; }
 .portDetailsDisclosure summary span,
 .accessoryDisclosure summary span { color: #fbbf24; }
+.portLabelLine { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 9px; }
+.portLabelLine span { color: #7dd3fc; font-size: 0.68rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+.portLabelLine strong { color: #edf5ff; font-size: 0.84rem; }
+.portLabelLine button { border: 1px solid rgba(125, 211, 252, 0.24); border-radius: 999px; padding: 5px 9px; color: #bfdbfe; background: rgba(14, 165, 233, 0.08); cursor: pointer; font-size: 0.72rem; font-weight: 850; }
+.portLabelEditor { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; margin-top: 10px; }
+.portLabelEditor input { min-width: 0; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; padding: 9px 12px; color: #e5edf7; background: rgba(2, 6, 23, 0.52); outline: none; }
+.portLabelEditor button { border: 1px solid rgba(125, 211, 252, 0.24); border-radius: 999px; padding: 8px 11px; color: #05111f; background: linear-gradient(135deg, #7dd3fc, #a7f3d0); cursor: pointer; font-weight: 850; }
+.portLabelEditor .plainButton { color: #bfdbfe; background: rgba(15, 23, 42, 0.72); }
+@media (max-width: 680px) { .portLabelEditor { grid-template-columns: 1fr; } }
