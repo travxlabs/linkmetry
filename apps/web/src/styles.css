@@ -261,3 +261,12 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .portLabelBackupActions button:disabled { opacity: 0.45; cursor: not-allowed; }
 .portLabelBackupActions input { display: none; }
 .portLabelBackupStatus { color: #d1fae5 !important; }
+.portSpeedEvidence { margin-top: 10px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 13px; padding: 9px 10px; background: rgba(2, 6, 23, 0.32); }
+.portSpeedEvidence span { display: block; color: #93c5fd; font-size: 0.68rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+.portSpeedEvidence strong { display: block; margin-top: 3px; color: #edf5ff; font-size: 0.84rem; }
+.portSpeedEvidence p { margin: 4px 0 0; color: #a8b7ca; line-height: 1.35; font-size: 0.8rem; }
+.portSpeedEvidence.good { border-color: rgba(52, 211, 153, 0.25); background: rgba(16, 185, 129, 0.08); }
+.portSpeedEvidence.good span { color: #86efac; }
+.portSpeedEvidence.warning { border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.1); }
+.portSpeedEvidence.warning span { color: #fde68a; }
+.portSpeedEvidence.compact p { display: none; }

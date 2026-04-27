@@ -296,7 +296,7 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
         <div>
           <p className="eyebrow">Find the physical port</p>
           <h2>Map real ports by moving one device at a time.</h2>
-          <p className="muted">Operating systems expose USB topology IDs like <strong>2-7.2</strong>, not friendly labels like “front-left USB-C.” Linkmetry can still help you identify them safely.</p>
+          <p className="muted">Operating systems expose USB topology IDs like <strong>2-7.2</strong>, not friendly labels like “back bottom row, 2 over.” Linkmetry can help you identify and name them safely.</p>
         </div>
         <div className="portFinderActions">
           {labelingSession.active ? <button className="scanButton small secondary" onClick={onStopLabeling}>Stop labeling</button> : <button className="scanButton small secondary" onClick={onStartLabeling}>Start port labeling</button>}
@@ -305,8 +305,8 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
       </div>
       <div className="portFinderSteps">
         <div><span>1</span><strong>Start labeling</strong><p>Linkmetry snapshots the current device paths.</p></div>
-        <div><span>2</span><strong>Move one device</strong><p>Plug the T7, flash drive, keyboard, or mouse into the physical port you want to name.</p></div>
-        <div><span>3</span><strong>Rescan and name it</strong><p>When a new path appears, label it with a friendly name like Front USB-C.</p></div>
+        <div><span>2</span><strong>Move a known-fast device</strong><p>Use the T7 or another USB 3 drive to verify whether that physical port can run at USB 3 speed.</p></div>
+        <div><span>3</span><strong>Name location + speed</strong><p>Label it like “Back bottom row, 2 over” and keep the current link speed as evidence.</p></div>
       </div>
       {labelingSession.active ? (
         <div className={changedCandidates.length > 0 ? "labelingStatus good" : "labelingStatus"}>
@@ -385,6 +385,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{deviceName(device)}</strong>
                 <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
+                <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} />
                 <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} />
                 <p className="pathIdLine"><span>Evidence path</span> {devicePathId(device)}</p>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
@@ -407,6 +408,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                     <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                     <strong>{deviceName(device)}</strong>
                     <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
+                    <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} compact />
                     <p className="pathIdLine"><span>Evidence path</span> {devicePathId(device)}</p>
                   </div>
                 ))}
@@ -507,11 +509,40 @@ function PortLabelEditor({ pathId, portLabels, onLabel }: { pathId: string; port
 
   return (
     <div className="portLabelEditor">
-      <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Example: Front USB-C" autoFocus />
+      <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Example: Back bottom row, 2 over" autoFocus />
       <button type="button" onClick={() => { onLabel(pathId, draft); setEditing(false); }}>Save</button>
       <button type="button" className="plainButton" onClick={() => { setDraft(portLabels[pathId] ?? ""); setEditing(false); }}>Cancel</button>
     </div>
   );
+}
+
+function PortSpeedEvidence({ device, storageDevice, compact = false }: { device: DiagnosticDevice; storageDevice?: StorageDevice; compact?: boolean }) {
+  const speed = device.negotiated_speed;
+  const isFast = Boolean(speed?.is_usb3_or_better);
+  const isUsb2 = Boolean(speed?.mbps && speed.mbps <= 480);
+  const deviceLimited = isLikelyDeviceLimitedUsb2(device, storageDevice);
+  const tone = isFast ? "good" : isUsb2 && !deviceLimited ? "warning" : "info";
+  const title = isFast ? "Current link: USB 3-class" : isUsb2 ? "Current link: USB 2-class" : "Current link: unknown";
+  const message = deviceLimited
+    ? "This may be normal for this device. Use a known USB 3 drive to verify the physical port capability."
+    : isFast
+      ? "This path is currently proving USB 3-class speed with the connected device."
+      : "This only proves the current device link, not the port’s maximum capability.";
+
+  return (
+    <div className={`portSpeedEvidence ${tone} ${compact ? "compact" : ""}`}>
+      <span>{title}</span>
+      <strong>{speed?.label ?? "Speed unavailable"}</strong>
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function isLikelyDeviceLimitedUsb2(device: DiagnosticDevice, storageDevice?: StorageDevice) {
+  if (storageDevice?.transport === "usb") return false;
+  const label = `${device.manufacturer ?? ""} ${device.product ?? ""}`.toLowerCase();
+  if (label.includes("scarlett") || label.includes("audio") || label.includes("keyboard") || label.includes("mouse") || label.includes("receiver")) return true;
+  return ["audio", "human-interface"].includes(device.kind);
 }
 
 function InlineDeviceVerdict({ device, storageDevice }: { device: DiagnosticDevice; storageDevice?: StorageDevice }) {
