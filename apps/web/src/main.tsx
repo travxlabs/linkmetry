@@ -220,9 +220,9 @@ function App() {
       <section className="hero">
         <div>
           <p className="eyebrow">Linkmetry USB control panel</p>
-          <h1>Your USB ports and devices, explained.</h1>
+          <h1>See what’s plugged in.</h1>
           <p className="lede">
-            A friendly control panel for what is plugged in, where it is connected, how fast it is negotiating, and what diagnostics are available.
+            Scan your USB devices, name your ports, and check drives without digging through system details.
           </p>
         </div>
         <button className="scanButton" onClick={runScan} disabled={scan.status === "loading"}>
@@ -239,7 +239,7 @@ function App() {
           <div>
             <h2>{summary?.headline ?? "Ready to scan your USB devices"}</h2>
             <p className="muted">
-              {summary?.subline ?? "Run a safe read-only scan when you are ready. Nothing is benchmarked or changed automatically."}{report?.generated_at ? ` · Refreshed ${new Date(report.generated_at).toLocaleTimeString()}` : ""}
+              {summary?.subline ?? "Run a quick scan when you are ready. Nothing is tested or changed automatically."}{report?.generated_at ? ` · Refreshed ${new Date(report.generated_at).toLocaleTimeString()}` : ""}
             </p>
           </div>
           <div className="badges">
@@ -274,7 +274,7 @@ function PageTabs({ page, onPage, portCount, driveCount }: { page: Page; onPage:
     <nav className="pageTabs" aria-label="Linkmetry sections">
       <button type="button" className={page === "overview" ? "active" : ""} onClick={() => onPage("overview")}>Overview</button>
       <button type="button" className={page === "ports" ? "active" : ""} onClick={() => onPage("ports")}>Map ports{portCount ? ` (${portCount})` : ""}</button>
-      <button type="button" className={page === "drives" ? "active" : ""} onClick={() => onPage("drives")}>Drive diagnostics{driveCount ? ` (${driveCount})` : ""}</button>
+      <button type="button" className={page === "drives" ? "active" : ""} onClick={() => onPage("drives")}>Check drives{driveCount ? ` (${driveCount})` : ""}</button>
     </nav>
   );
 }
@@ -285,12 +285,12 @@ function OverviewNextActions({ onPage, portLabelCount, driveCount }: { onPage: (
       <button className="overviewActionCard" type="button" onClick={() => onPage("ports")}>
         <span>Map ports</span>
         <strong>{portLabelCount ? `${portLabelCount} saved label${portLabelCount === 1 ? "" : "s"}` : "Name your physical USB ports"}</strong>
-        <p>Build a human map like “back bottom row, 2 over,” and verify USB 3 capability with the T7.</p>
+        <p>Name ports like “back bottom row, 2 over.” Use the T7 to confirm fast ports.</p>
       </button>
       <button className="overviewActionCard" type="button" onClick={() => onPage("drives")}>
-        <span>Drive diagnostics</span>
+        <span>Check drives</span>
         <strong>{driveCount ? `${driveCount} external drive${driveCount === 1 ? "" : "s"} found` : "No external drives found"}</strong>
-        <p>Run deeper storage checks separately from the main device overview.</p>
+        <p>Check external drives without cluttering the main view.</p>
       </button>
     </section>
   );
@@ -301,8 +301,8 @@ function PortMappingPage({ devices, storageDevices, portLabels, portMetadata, la
     <section className="portMappingPage">
       <div className="sectionIntro">
         <p className="eyebrow">Map ports</p>
-        <h2>Name physical USB ports.</h2>
-        <p className="muted">Use this page when you want labels like “Back bottom row, 2 over.” The overview stays focused on actual connected devices.</p>
+        <h2>Name your USB ports.</h2>
+        <p className="muted">Give each physical port a name you’ll recognize later.</p>
       </div>
       <Usb3VerificationGuide />
       <PortMapCards devices={devices} portLabels={portLabels} portMetadata={portMetadata} onLabel={onLabel} />
@@ -316,12 +316,12 @@ function Usb3VerificationGuide() {
   return (
     <section className="card usb3VerifyGuide">
       <p className="eyebrow">Verify port speed</p>
-      <h2>Use a known-fast device to prove a port is USB 3-capable.</h2>
-      <p className="muted">A USB 2 device only proves that device connected at USB 2 speed. To verify the physical port, plug in the Samsung T7 or another known USB 3 drive, rescan, then label the physical port.</p>
+      <h2>Use the T7 to confirm fast ports.</h2>
+      <p className="muted">Plug the Samsung T7 into a port, scan again, and Linkmetry will mark that port as fast if it sees USB 3 speed.</p>
       <div className="verifySteps">
-        <div><span>1</span><strong>Move the T7</strong><p>Plug the Samsung T7 into the physical port you want to verify.</p></div>
-        <div><span>2</span><strong>Rescan</strong><p>If Linkmetry sees USB 3-class speed, that port is marked verified.</p></div>
-        <div><span>3</span><strong>Name the port</strong><p>Use a human label like “Back bottom row, 2 over.”</p></div>
+        <div><span>1</span><strong>Move the T7</strong><p>Plug the Samsung T7 into the port you want to check.</p></div>
+        <div><span>2</span><strong>Rescan</strong><p>If fast USB is seen, the port is marked verified.</p></div>
+        <div><span>3</span><strong>Name it</strong><p>Use a label like “back bottom row, 2 over.”</p></div>
       </div>
     </section>
   );
@@ -333,26 +333,26 @@ function PortMapCards({ devices, portLabels, portMetadata, onLabel }: { devices:
 
   return (
     <section className="card portMapCard">
-      <p className="eyebrow">Saved port map</p>
+      <p className="eyebrow">Your port map</p>
       <h2>{paths.length} mapped or visible port{paths.length === 1 ? "" : "s"}</h2>
-      <p className="muted">This is the human map: friendly labels, last seen device, and whether USB 3-class speed has been verified on that physical spot.</p>
+      <p className="muted">Your saved port names, what was last plugged in, and whether each port has been confirmed fast.</p>
       <div className="portMapGrid">
         {paths.map((pathId) => {
           const device = currentByPath.get(pathId);
           const meta = portMetadata[pathId];
           const speed = device?.negotiated_speed;
           const usb3Verified = Boolean(meta?.usb3Verified || speed?.is_usb3_or_better);
-          const capability = usb3Verified ? "USB 3 verified" : speed?.mbps && speed.mbps <= 480 ? "Only USB 2 seen so far" : "Unknown capability";
+          const capability = usb3Verified ? "USB 3 verified" : speed?.mbps && speed.mbps <= 480 ? "Only USB 2 seen so far" : "Not checked yet";
           return (
             <article className={`portMapTile ${usb3Verified ? "verified" : "unknown"}`} key={pathId}>
               <span>{capability}</span>
               <strong>{portLabels[pathId] ?? "Unnamed physical port"}</strong>
               <p>{device ? `${deviceName(device)} connected now` : meta?.lastSeenDevice ? `Last seen: ${meta.lastSeenDevice}` : "No recognizable device seen yet"}</p>
               <p className="muted">{speed?.generation ?? speed?.label ?? meta?.lastSeenSpeed ?? "speed not known yet"}</p>
-              {usb3Verified ? <p className="verificationNote">Verified with {meta?.verifiedWith ?? deviceName(device!)}.</p> : <p className="verificationNote muted">To verify: plug the T7 into this physical port, rescan, then label it.</p>}
+              {usb3Verified ? <p className="verificationNote">Verified with {meta?.verifiedWith ?? deviceName(device!)}.</p> : <p className="verificationNote muted">To check speed: plug in the T7, scan again, then name the port.</p>}
               <PortLabelEditor pathId={pathId} portLabels={portLabels} onLabel={onLabel} />
               <details className="evidencePathDisclosure">
-                <summary>Show technical evidence path</summary>
+                <summary>Show device ID</summary>
                 <p>{pathId}</p>
               </details>
             </article>
@@ -368,7 +368,7 @@ function PreScanCard({ onScan }: { onScan: () => void }) {
     <section className="card preScanCard">
       <p className="eyebrow">Start here</p>
       <h2>Run a scan when you are ready.</h2>
-      <p className="muted">Linkmetry will look at connected USB devices and external drives, then explain the results in normal language. Advanced technical details stay hidden unless you open them.</p>
+      <p className="muted">Linkmetry will show what is plugged in, where it is connected, and anything worth checking. Details stay hidden unless you open them.</p>
       <button className="scanButton" onClick={onScan}>Run scan</button>
     </section>
   );
@@ -391,7 +391,7 @@ function EmptyCard() {
     <section className="card">
       <p className="eyebrow">No USB devices</p>
       <h2>No inspectable USB devices were returned.</h2>
-      <p className="muted">Confirm Linux exposes USB data under /sys/bus/usb/devices.</p>
+      <p className="muted">No USB data was returned. Try scanning again or check that USB devices are available on this computer.</p>
     </section>
   );
 }
@@ -406,7 +406,7 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
   return (
     <section className="card friendlySummary">
       <p className="eyebrow">Plain-English summary</p>
-      <h2>What Linkmetry found</h2>
+      <h2>What’s plugged in</h2>
       <div className="summaryGrid">
         {summary.cards.map((card) => (
           <div className={`summaryTile ${card.tone}`} key={card.title}>
@@ -438,7 +438,7 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
         <div>
           <p className="eyebrow">Find the physical port</p>
           <h2>Map real ports by moving one device at a time.</h2>
-          <p className="muted">Do not worry about the evidence path. To find a real position like “back, bottom row, 2 over,” use this guided move-and-rescan flow.</p>
+          <p className="muted">Move one device at a time, scan again, and name the port you used.</p>
         </div>
         <div className="portFinderActions">
           {labelingSession.active ? <button className="scanButton small secondary" onClick={onStopLabeling}>Stop labeling</button> : <button className="scanButton small secondary" onClick={onStartLabeling}>Start port labeling</button>}
@@ -447,20 +447,20 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
       </div>
       <div className="portFinderSteps">
         <div><span>1</span><strong>Click Start labeling</strong><p>This saves the current state before you move anything.</p></div>
-        <div><span>2</span><strong>Move one obvious device</strong><p>Use the T7 when you want to verify USB 3 capability, or any obvious device when you only need to identify the physical spot.</p></div>
-        <div><span>3</span><strong>Click Rescan</strong><p>Linkmetry highlights what changed. If a USB 3-class speed is seen, the port is marked verified.</p></div>
+        <div><span>2</span><strong>Move one obvious device</strong><p>Use the T7 to check speed, or any easy-to-spot device just to identify the port.</p></div>
+        <div><span>3</span><strong>Click Rescan</strong><p>Linkmetry shows what moved. If fast USB is seen, the port is marked verified.</p></div>
       </div>
       {labelingSession.active ? (
         <div className={changedCandidates.length > 0 ? "labelingStatus good" : "labelingStatus"}>
-          <strong>{changedCandidates.length > 0 ? "New path candidate found" : "Labeling mode is active"}</strong>
-          <p>{changedCandidates.length > 0 ? "This is the device you moved. Name the physical port you just plugged it into." : "Now move exactly one device to the physical port you want to identify, then click Rescan."}</p>
+          <strong>{changedCandidates.length > 0 ? "Moved device found" : "Ready to map a port"}</strong>
+          <p>{changedCandidates.length > 0 ? "Name the port you just used." : "Move one device to the port you want to name, then scan again."}</p>
         </div>
       ) : null}
       {best ? (
         <div className={`portFinderExample ${changedCandidates.includes(best) ? "newPathCandidate" : ""}`}>
-          <span>{changedCandidates.includes(best) ? "New path candidate" : "Current example"}</span>
+          <span>{changedCandidates.includes(best) ? "Moved device" : "Example device"}</span>
           <strong>{deviceName(best)} → {friendlyPortName(best, portLabels)}</strong>
-          <p>{changedCandidates.includes(best) ? "Name the physical port you just used — for example, back bottom row, 2 over." : "Use Start labeling, move this device to a physical port, then rescan. Linkmetry will highlight the moved device so you can name that port."}</p>
+          <p>{changedCandidates.includes(best) ? "Name that port — for example, back bottom row, 2 over." : "Start mapping, move this device, then scan again. Linkmetry will show the port to name."}</p>
           <PortLabelEditor pathId={devicePathId(best)} portLabels={portLabels} onLabel={onLabel} />
         </div>
       ) : null}
@@ -515,8 +515,8 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
   return (
     <section className="card connectionMapCard">
       <p className="eyebrow">Devices first</p>
-      <h2>{showPortMapping ? "Devices available for port mapping" : "Actual devices connected right now"}</h2>
-      <p className="muted inventoryIntro">{showPortMapping ? "Use these devices to label physical ports. Move one device at a time, rescan, then name the physical location." : "Start here: these are the things you recognize — drives, keyboards, mice, audio interfaces, receivers, and accessories. Technical details stay hidden unless you open them."}</p>
+      <h2>{showPortMapping ? "Devices you can use to map ports" : "Devices connected now"}</h2>
+      <p className="muted inventoryIntro">{showPortMapping ? "Move one device, scan again, then name the port it used." : "Start here: drives, keyboards, audio gear, receivers, and accessories. Details stay hidden unless you open them."}</p>
 
       <div className="deviceFirstLayout">
         <div>
@@ -533,7 +533,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                   <summary>Show more details</summary>
                   <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} />
                   <details className="evidencePathDisclosure">
-                    <summary>Show technical evidence path</summary>
+                    <summary>Show device ID</summary>
                     <p>{devicePathId(device)}</p>
                   </details>
                 </details>
@@ -546,7 +546,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
           {accessoryDevices.length > 0 ? (
             <details className="accessoryDisclosure">
               <summary>
-                <span>Advanced · internal/accessory endpoints</span>
+                <span>Details · hidden USB parts</span>
                 <strong>{accessoryDevices.length} hidden USB endpoint{accessoryDevices.length === 1 ? "" : "s"}</strong>
               </summary>
               <p className="muted">Shown for troubleshooting only. These may be RGB controllers, cooler controllers, receivers, or other low-level endpoints. They are not included in the main device count.</p>
@@ -558,7 +558,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                     <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                     <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} compact />
                     <details className="evidencePathDisclosure">
-                      <summary>Show technical evidence path</summary>
+                      <summary>Show device ID</summary>
                       <p>{devicePathId(device)}</p>
                     </details>
                   </div>
@@ -573,10 +573,10 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
 
       <details className="portDetailsDisclosure" open={showPortMapping || undefined}>
         <summary>
-          <span>Advanced · technical ports & paths</span>
-          <strong>Show raw USB buses, hubs, and topology IDs</strong>
+          <span>Details · USB ports and paths</span>
+          <strong>Show low-level USB details</strong>
         </summary>
-        <p className="muted evidenceNote">Advanced troubleshooting view. These are Linux topology paths such as <strong>1-10</strong> or <strong>2-7.2</strong>. They help identify physical ports, but they are not human-friendly device names and are not included in the main count.</p>
+        <p className="muted evidenceNote">Low-level USB details. Helpful for troubleshooting, but not needed for normal use.</p>
         <div className="portGrid compactPorts">
           {map.map((port) => (
             <article className="portCard" key={port.root.id}>
@@ -675,14 +675,14 @@ function PortSpeedEvidence({ device, storageDevice, compact = false }: { device:
   const tone = isFast ? "good" : isUsb2 && !deviceLimited ? "warning" : "info";
   const title = isFast ? "Current link: USB 3-class" : isUsb2 ? "Current link: USB 2-class" : "Current link: unknown";
   const message = deviceLimited
-    ? "This may be normal for this device. Use a known USB 3 drive to verify the physical port capability."
+    ? "This may be normal. Use the T7 if you want to check whether the port itself is fast."
     : isFast
       ? "This path is currently proving USB 3-class speed with the connected device."
-      : "This only proves the current device link, not the port’s maximum capability.";
+      : "This shows the current device speed, not the port’s full potential.";
 
   return (
     <div className={`portSpeedEvidence ${tone} ${compact ? "compact" : ""}`}>
-      <span>Advanced · {title}</span>
+      <span>Details · {title}</span>
       <strong>{speed?.label ?? "Speed unavailable"}</strong>
       <p>{message}</p>
     </div>
@@ -710,12 +710,12 @@ function deviceQuickVerdict(device: DiagnosticDevice, storageDevice?: StorageDev
   const speed = device.negotiated_speed?.mbps;
   if (storageDevice?.transport === "usb") {
     if (storageDevice.usb_link_speed?.is_usb3_or_better) {
-      return { tone: "good", label: "Looks good", message: "External drive is on a USB 3-class path; run a read test for real throughput." };
+      return { tone: "good", label: "Looks good", message: "Drive is on a fast USB connection. Run a read test if you want real speed numbers." };
     }
     if ((storageDevice.usb_link_speed?.mbps ?? Number.POSITIVE_INFINITY) <= 480) {
-      return { tone: "warning", label: "Likely bottleneck", message: "External drive appears capped at USB 2.0-class speed." };
+      return { tone: "warning", label: "Likely bottleneck", message: "Drive may be on a slower USB connection." };
     }
-    return { tone: "unknown", label: "Needs test", message: "Drive is detected, but Linkmetry needs more speed evidence." };
+    return { tone: "unknown", label: "Needs test", message: "Drive is detected, but speed is not clear yet." };
   }
 
   if (speed !== undefined && speed <= 12) {
@@ -723,14 +723,14 @@ function deviceQuickVerdict(device: DiagnosticDevice, storageDevice?: StorageDev
   }
 
   if (speed !== undefined && speed <= 480 && ["audio", "human-interface", "usb-device"].includes(device.kind)) {
-    return { tone: "info", label: "Probably normal", message: "This class of device usually does not need USB 3 speed." };
+    return { tone: "info", label: "Probably normal", message: "This device probably does not need fast USB." };
   }
 
   if (device.negotiated_speed?.is_usb3_or_better) {
-    return { tone: "good", label: "High-speed", message: "USB 3-class link is available for this device." };
+    return { tone: "good", label: "High-speed", message: "This device is using fast USB." };
   }
 
-  return { tone: "unknown", label: "Unknown", message: "Connection is visible, but speed evidence is limited." };
+  return { tone: "unknown", label: "Unknown", message: "Connected, but speed is not clear yet." };
 }
 
 
@@ -766,7 +766,7 @@ function availableActions(storageDevice?: StorageDevice): Array<{ label: string;
   return [
     { label: "Explain", action: "explain", enabled: true },
     { label: "Details", action: "details", enabled: true },
-    { label: "Check path", action: "path", enabled: true },
+    { label: "Check route", action: "path", enabled: true },
     { label: "Speed test", action: "speed", enabled: Boolean(storageDevice?.transport === "usb"), reason: storageDevice ? undefined : "Speed test is currently available for external drives only." },
   ];
 }
@@ -795,14 +795,14 @@ function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose,
           <FriendlyFact label="USB generation" value={device.negotiated_speed?.generation ?? "Unknown"} />
           <FriendlyFact label="Manufacturer" value={device.manufacturer ?? "Unknown"} />
           <FriendlyFact label="Product" value={device.product ?? "Unknown"} />
-          <FriendlyFact label="USB path" value={device.topology_path ?? device.id} />
+          <FriendlyFact label="Device ID" value={device.topology_path ?? device.id} />
           <FriendlyFact label="Device ID" value={`${device.vendor_id ?? "????"}:${device.product_id ?? "????"}`} />
         </div>
       ) : null}
 
       {action === "path" ? (
         <div className="pathPanel">
-          <p className="actionExplanation">{path.length > 1 ? `${deviceName(device)} is connected through ${path.length - 1} visible upstream USB step${path.length - 1 === 1 ? "" : "s"}.` : `${deviceName(device)} appears directly on this USB path.`}</p>
+          <p className="actionExplanation">{path.length > 1 ? `${deviceName(device)} goes through ${path.length - 1} USB step${path.length - 1 === 1 ? "" : "s"}.` : `${deviceName(device)} appears directly on this Device ID.`}</p>
           {bottleneck ? (
             <div className="pathInsight warningInsight">
               <strong>Possible bottleneck</strong>
@@ -811,7 +811,7 @@ function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose,
           ) : (
             <div className="pathInsight">
               <strong>No visible path bottleneck</strong>
-              <span>Every visible upstream step is at least as fast as this device, based on what Linux exposes.</span>
+              <span>The visible route does not look slower than the device.</span>
             </div>
           )}
           <ol className="pathSteps">
@@ -833,7 +833,7 @@ function DeviceActionPanel({ action, device, storageDevice, usbDevices, onClose,
 }
 
 function actionPanelTitle(action: DeviceAction) {
-  return { explain: "Explain this device", details: "Device details", path: "Connection path", speed: "Speed test" }[action];
+  return { explain: "Explain this device", details: "Device details", path: "Connection route", speed: "Speed test" }[action];
 }
 
 function explainDevice(device: DiagnosticDevice, storageDevice: StorageDevice | undefined, path: DiagnosticDevice[]) {
@@ -843,13 +843,13 @@ function explainDevice(device: DiagnosticDevice, storageDevice: StorageDevice | 
   if (storageDevice) {
     const mount = benchmarkableMountpoints(storageDevice)[0] ?? storageDevice.mountpoints[0] ?? storageDevice.dev_path;
     if (bottleneck) {
-      return `${deviceName(device)} is an external drive, but the visible USB path may be limiting it: ${bottleneck} It is available at ${mount}. Run the safe read test to compare real throughput with the negotiated link.`;
+      return `${deviceName(device)} is an external drive, but the visible Device ID may be limiting it: ${bottleneck} It is available at ${mount}. Run the safe read test to compare real throughput with the negotiated link.`;
     }
-    return `${deviceName(device)} is an external drive connected over ${speedLabel}. The visible path does not show an upstream bottleneck, so the next useful check is a safe read-only speed test from ${mount}.`;
+    return `${deviceName(device)} is an external drive using ${speedLabel}. Nothing obvious looks slow, so the next useful check is an optional read test from ${mount}.`;
   }
 
   if (device.kind === "hub") {
-    return `${deviceName(device)} is part of the USB path, not usually the thing you test directly. It matters because anything downstream can only perform as well as this path allows.`;
+    return `${deviceName(device)} is part of the Device ID, not usually the thing you test directly. It matters because anything downstream can only perform as well as this path allows.`;
   }
 
   if ((device.negotiated_speed?.mbps ?? 0) <= 12) {
@@ -860,7 +860,7 @@ function explainDevice(device: DiagnosticDevice, storageDevice: StorageDevice | 
     return `${deviceName(device)} is connected over ${speedLabel}, but Linkmetry sees a slower upstream step: ${bottleneck}`;
   }
 
-  return `${deviceName(device)} is connected over ${speedLabel}. Linkmetry does not see an obvious upstream bottleneck in the current Linux USB path.${path.length > 1 ? ` The visible path has ${path.length - 1} upstream step${path.length - 1 === 1 ? "" : "s"}.` : ""}`;
+  return `${deviceName(device)} is connected over ${speedLabel}. Linkmetry does not see an obvious upstream bottleneck in the current Linux Device ID.${path.length > 1 ? ` The visible path has ${path.length - 1} upstream step${path.length - 1 === 1 ? "" : "s"}.` : ""}`;
 }
 
 function DriveDiagnosticsPage({ cards, storageDevices, usbDevices }: { cards: DeviceCard[]; storageDevices: StorageDevice[]; usbDevices: DiagnosticDevice[] }) {
@@ -884,9 +884,9 @@ function DriveDiagnosticsPage({ cards, storageDevices, usbDevices }: { cards: De
   return (
     <section className="deviceCheckSection driveDiagnosticsPage" id="external-drive-diagnostics">
       <div className="sectionIntro">
-        <p className="eyebrow">Drive diagnostics</p>
-        <h2>Choose a drive to check.</h2>
-        <p className="muted">This page is for storage-specific checks. Linkmetry shows the safe read-only information first; speed tests only run when you click a button.</p>
+        <p className="eyebrow">Check drives</p>
+        <h2>Choose a drive.</h2>
+        <p className="muted">Pick an external drive. Speed tests only run when you click a button.</p>
       </div>
       {externalIndexes.length > 0 ? (
         <>
@@ -894,7 +894,7 @@ function DriveDiagnosticsPage({ cards, storageDevices, usbDevices }: { cards: De
           {selected ? <DeviceSummary key={selected.device.dev_path} card={cards[selected.index]} device={selected.device} usbDevices={usbDevices} /> : null}
         </>
       ) : (
-        <section className="card"><h2>No external drives found</h2><p className="muted">Plug in an external USB drive to test speed and cable/path health.</p></section>
+        <section className="card"><h2>No external drives found</h2><p className="muted">Plug in an external USB drive to check it.</p></section>
       )}
     </section>
   );
@@ -903,7 +903,7 @@ function DriveDiagnosticsPage({ cards, storageDevices, usbDevices }: { cards: De
 function DriveChooser({ drives, selectedPath, onSelect }: { drives: Array<{ device: StorageDevice; card: DeviceCard }>; selectedPath: string | null; onSelect: (path: string) => void }) {
   return (
     <section className="card driveChooserCard">
-      <p className="eyebrow">Connected drives</p>
+      <p className="eyebrow">Drives found</p>
       <h2>{drives.length} external drive{drives.length === 1 ? "" : "s"} ready to inspect</h2>
       <div className="driveChooserGrid">
         {drives.map(({ device, card }) => (
@@ -926,16 +926,16 @@ function UsbInventory({ devices, storageDevices }: { devices: DiagnosticDevice[]
     <details className="card technicalDetails">
       <summary>
         <div>
-          <p className="eyebrow">Advanced technical details</p>
-          <h2>Raw USB entries</h2>
-          <p className="muted">For debugging only: this includes hubs, controllers, topology nodes, and low-level endpoints that normal users do not think of as “devices.”</p>
+          <p className="eyebrow">Details for troubleshooting</p>
+          <h2>Low-level USB entries</h2>
+          <p className="muted">For troubleshooting only. This includes hubs, controllers, and internal USB parts.</p>
         </div>
-        <span className="detailsPill">Show advanced details</span>
+        <span className="detailsPill">Show details</span>
       </summary>
 
-      <InventoryGroup title="Raw accessory endpoints" description="Low-bandwidth USB endpoints exposed by the OS. Some are recognizable accessories; some may be internal controller pieces." devices={groups.peripherals} empty="No raw accessory endpoints detected." />
-      <InventoryGroup title="Raw notable endpoints" description="Audio/video/network/high-speed endpoints from the raw USB scan that are not already part of the main simplified view." devices={groups.important} empty="No raw notable endpoints detected." />
-      <InventoryGroup title="Raw hubs, buses, and controllers" description="USB hubs, root buses, and controller paths. Useful for port mapping and debugging; not counted as user-facing devices." devices={groups.infrastructure} empty="No hub/controller entries detected." />
+      <InventoryGroup title="Accessory details" description="Small USB parts and accessories. Most people can ignore these." devices={groups.peripherals} empty="No accessory details found." />
+      <InventoryGroup title="Other detected devices" description="Other USB items that were not shown in the main list." devices={groups.important} empty="No extra devices found." />
+      <InventoryGroup title="USB hubs and controllers" description="USB hubs and controllers. Useful for troubleshooting; not counted as normal devices." devices={groups.infrastructure} empty="No hub/controller entries detected." />
     </details>
   );
 }
@@ -994,7 +994,7 @@ function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: St
 
   return {
     headline: `${humanDevices.length} recognizable USB device${humanDevices.length === 1 ? "" : "s"} found`,
-    subline: `${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"} · ${fastDevices.length} fast connection${fastDevices.length === 1 ? "" : "s"} · advanced details available`,
+    subline: `${externalDrives.length} external drive${externalDrives.length === 1 ? "" : "s"} · ${fastDevices.length} fast connection${fastDevices.length === 1 ? "" : "s"} · details available`,
     cards: [
       {
         title: "Devices",
@@ -1010,8 +1010,8 @@ function buildFriendlySummary(usbDevices: DiagnosticDevice[], storageDevices: St
       },
       {
         title: "Next steps",
-        value: "Pick a workflow",
-        note: "Map physical ports or diagnose drives only when you need those deeper tools.",
+        value: "Choose what to do next",
+        note: "Map ports or check drives when you need more help.",
         tone: "info",
       },
     ],
@@ -1161,9 +1161,9 @@ function DriveSafetySummary({ device, card }: { device: StorageDevice; card: Dev
   return (
     <div className="driveSafetySummary">
       <div>
-        <span>Safe checks</span>
-        <strong>Already done</strong>
-        <p>Linkmetry read device identity, mount locations, and the current USB link. No write test has run.</p>
+        <span>Basic check</span>
+        <strong>Done</strong>
+        <p>Linkmetry checked the drive name, location, and USB speed. It did not write anything.</p>
       </div>
       <div>
         <span>Current verdict</span>
@@ -1171,9 +1171,9 @@ function DriveSafetySummary({ device, card }: { device: StorageDevice; card: Dev
         <p>{card.primary_verdict?.message ?? "Run the explicit read test only if you want real throughput numbers."}</p>
       </div>
       <div>
-        <span>Next safe target</span>
+        <span>Suggested file area</span>
         <strong>{benchmarkMount ?? "No safe mount found"}</strong>
-        <p>{benchmarkMount ? "Use this for the optional read-only speed test." : "Linkmetry cannot auto-pick a safe read-test location for this drive yet."}</p>
+        <p>{benchmarkMount ? "Use this if you choose to run the read test." : "Linkmetry can’t pick a test location for this drive yet."}</p>
       </div>
     </div>
   );
@@ -1195,11 +1195,11 @@ function ConnectionPathPanel({ device, path }: { device: StorageDevice; path: Di
 
   return (
     <div className="connectionPathBox">
-      <p className="eyebrow">Connection path</p>
-      <h3>{path.length > 0 ? describePath(path) : `USB path ${device.usb_device_id}`}</h3>
+      <p className="eyebrow">Connection route</p>
+      <h3>{path.length > 0 ? describePath(path) : `Device ID ${device.usb_device_id}`}</h3>
       <p className="muted">
         {path.length > 0
-          ? "This is the current upstream USB chain Linux exposes for this storage device."
+          ? "This is the route this drive is using right now."
           : "Linux exposed a USB device id, but Linkmetry could not reconstruct the full upstream chain yet."}
       </p>
       {bottleneck ? (
@@ -1209,7 +1209,7 @@ function ConnectionPathPanel({ device, path }: { device: StorageDevice; path: Di
         </div>
       ) : (
         <div className="pathInsight">
-          <strong>Connection path looks okay</strong>
+          <strong>Connection route looks okay</strong>
           <span>Nothing in the visible route looks slower than the device itself.</span>
         </div>
       )}
@@ -1243,12 +1243,12 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
     const normalizedTarget = target.trim();
     if (!normalizedTarget) {
       setStatus("error");
-      setError("Click Auto-pick test file, or paste the full path to a large file on this drive.");
+      setError("Click Pick test file, or paste the full path to a large file on this drive.");
       return;
     }
     if (normalizedTarget.endsWith("/")) {
       setStatus("error");
-      setError("That is a folder. Click Auto-pick test file, or paste a full file path inside that folder.");
+      setError("That is a folder. Click Pick test file, or paste a full file path inside that folder.");
       return;
     }
 
@@ -1259,7 +1259,7 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
     const mount = benchmarkMountpoints[0];
     if (!mount) {
       setStatus("error");
-      setError("No benchmarkable USB mount was found for this drive.");
+      setError("No safe test location was found for this drive.");
       return;
     }
     await fetchBenchmark(`/api/benchmark/auto?iterations=3&mount=${encodeURIComponent(mount)}`);
@@ -1284,9 +1284,9 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
   return (
     <div className="benchmarkBox">
       <div>
-        <p className="eyebrow">Optional read-only test</p>
-        <h3>Run a speed check only if you want throughput numbers</h3>
-        <p className="muted">This is explicit and read-only. Linkmetry reads an existing large file; it does not write to the drive or benchmark automatically.</p>
+        <p className="eyebrow">Optional speed test</p>
+        <h3>Run a speed check only if you want numbers</h3>
+        <p className="muted">This only reads an existing file. It does not write to the drive and never runs by itself.</p>
       </div>
       {isUsbStorage ? (
         <>
@@ -1297,10 +1297,10 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
               placeholder={suggestedTarget}
             />
             <button className="scanButton small secondary" onClick={runAutoBenchmark} disabled={status === "running" || benchmarkMountpoints.length === 0}>
-              Auto-pick test file
+              Pick test file
             </button>
             <button className="scanButton small" onClick={runBenchmark} disabled={status === "running"}>
-              {status === "running" ? "Testing…" : "Run read test"}
+              {status === "running" ? "Testing…" : "Run speed test"}
             </button>
           </div>
           {benchmarkMountpoints.length > 0 ? (
@@ -1312,7 +1312,7 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
           ) : null}
         </>
       ) : (
-        <p className="muted benchmarkDisabled">Read benchmark is hidden for internal/system storage in this prototype. Linkmetry is focusing on external USB storage first.</p>
+        <p className="muted benchmarkDisabled">Speed tests are only shown for external USB drives right now.</p>
       )}
       {error ? <p className="errorText">{error}</p> : null}
       {result ? <BenchmarkResultPanel result={result} /> : null}
@@ -1367,7 +1367,7 @@ function EvidencePanel({ device }: { device?: StorageDevice }) {
 
   return (
     <section className="card evidenceCard">
-      <p className="eyebrow">Technical evidence</p>
+      <p className="eyebrow">Details</p>
       <h2>Details behind the answer for {device.dev_path}</h2>
       <div className="evidenceList">
         <EvidenceItem label="Storage path" value={`${device.vendor ?? ""} ${device.model ?? device.dev_path}`.trim()} />
@@ -1417,7 +1417,7 @@ function describePath(path: DiagnosticDevice[]) {
   const endpoint = path[path.length - 1];
   const upstreamHub = [...path].reverse().find((device) => device.kind === "hub" && device.id !== endpoint.id);
   if (upstreamHub) return `${deviceName(endpoint)} downstream of ${deviceName(upstreamHub)}`;
-  return `${deviceName(endpoint)} direct USB path`;
+  return `${deviceName(endpoint)} direct Device ID`;
 }
 
 function findPathBottleneck(path: DiagnosticDevice[]) {
@@ -1483,7 +1483,7 @@ function scanStatusLabel(status: ScanState["status"]) {
 }
 
 function statusLabel(status: StatusTone) {
-  return { good: "Healthy path", warning: "Needs attention", info: "Informational", unknown: "Unknown" }[status];
+  return { good: "Looks good", warning: "Needs attention", info: "Info", unknown: "Unknown" }[status];
 }
 
 createRoot(document.getElementById("root")!).render(
