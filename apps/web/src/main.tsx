@@ -296,7 +296,7 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
         <div>
           <p className="eyebrow">Find the physical port</p>
           <h2>Map real ports by moving one device at a time.</h2>
-          <p className="muted">Operating systems expose USB topology IDs like <strong>2-7.2</strong>, not friendly labels like “back bottom row, 2 over.” Linkmetry can help you identify and name them safely.</p>
+          <p className="muted">Do not worry about the evidence path. To find a real position like “back, bottom row, 2 over,” use this guided move-and-rescan flow.</p>
         </div>
         <div className="portFinderActions">
           {labelingSession.active ? <button className="scanButton small secondary" onClick={onStopLabeling}>Stop labeling</button> : <button className="scanButton small secondary" onClick={onStartLabeling}>Start port labeling</button>}
@@ -304,21 +304,21 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
         </div>
       </div>
       <div className="portFinderSteps">
-        <div><span>1</span><strong>Start labeling</strong><p>Linkmetry snapshots the current device paths.</p></div>
-        <div><span>2</span><strong>Move a known-fast device</strong><p>Use the T7 or another USB 3 drive to verify whether that physical port can run at USB 3 speed.</p></div>
-        <div><span>3</span><strong>Name location + speed</strong><p>Label it like “Back bottom row, 2 over” and keep the current link speed as evidence.</p></div>
+        <div><span>1</span><strong>Click Start labeling</strong><p>This saves the current state before you move anything.</p></div>
+        <div><span>2</span><strong>Move one obvious device</strong><p>Move the T7 to the exact physical port you want to identify, like back bottom row, second from left.</p></div>
+        <div><span>3</span><strong>Click Rescan</strong><p>Linkmetry highlights what changed. Name that physical spot in your own words.</p></div>
       </div>
       {labelingSession.active ? (
         <div className={changedCandidates.length > 0 ? "labelingStatus good" : "labelingStatus"}>
           <strong>{changedCandidates.length > 0 ? "New path candidate found" : "Labeling mode is active"}</strong>
-          <p>{changedCandidates.length > 0 ? "Name the highlighted path below, then move to the next physical port." : "Move exactly one device, then click Rescan after moving device."}</p>
+          <p>{changedCandidates.length > 0 ? "This is the device you moved. Name the physical port you just plugged it into." : "Now move exactly one device to the physical port you want to identify, then click Rescan."}</p>
         </div>
       ) : null}
       {best ? (
         <div className={`portFinderExample ${changedCandidates.includes(best) ? "newPathCandidate" : ""}`}>
           <span>{changedCandidates.includes(best) ? "New path candidate" : "Current example"}</span>
           <strong>{deviceName(best)} → {friendlyPortName(best, portLabels)}</strong>
-          <p>{storageByUsbId.get(best.id)?.mountpoints[0] ? `Mounted at ${storageByUsbId.get(best.id)?.mountpoints[0]}. ` : ""}If you move this device and rescan, this path should change, which tells you which physical port you used.</p>
+          <p>{changedCandidates.includes(best) ? "Name the physical port you just used — for example, back bottom row, 2 over." : "Use Start labeling, move this device to a physical port, then rescan. Linkmetry will highlight the moved device so you can name that port."}</p>
           <PortLabelEditor pathId={devicePathId(best)} portLabels={portLabels} onLabel={onLabel} />
         </div>
       ) : null}
@@ -387,7 +387,10 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                 <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                 <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} />
                 <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} />
-                <p className="pathIdLine"><span>Evidence path</span> {devicePathId(device)}</p>
+                <details className="evidencePathDisclosure">
+                  <summary>Show technical evidence path</summary>
+                  <p>{devicePathId(device)}</p>
+                </details>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
                 <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
                 {selectedAction?.deviceId === device.id ? (
@@ -409,7 +412,10 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                     <strong>{deviceName(device)}</strong>
                     <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                     <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} compact />
-                    <p className="pathIdLine"><span>Evidence path</span> {devicePathId(device)}</p>
+                    <details className="evidencePathDisclosure">
+                      <summary>Show technical evidence path</summary>
+                      <p>{devicePathId(device)}</p>
+                    </details>
                   </div>
                 ))}
               </div>
