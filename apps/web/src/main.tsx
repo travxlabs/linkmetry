@@ -277,6 +277,7 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{deviceName(device)}</strong>
                 <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id))}</p>
+                <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
                 <DeviceActions device={device} storageDevice={storageByUsbId.get(device.id)} selectedAction={selectedAction} onAction={onAction} />
                 {selectedAction?.deviceId === device.id ? (
                   <DeviceActionPanel action={selectedAction.action} device={device} storageDevice={storageByUsbId.get(device.id)} usbDevices={devices} onClose={() => onAction(null)} compact />
@@ -323,6 +324,43 @@ function deviceConnectionSummary(device: DiagnosticDevice, storageDevice?: Stora
   }
   if ((device.negotiated_speed?.mbps ?? 0) <= 12) return `normal for simple accessories · ${location}`;
   return `connected on ${location}`;
+}
+
+function InlineDeviceVerdict({ device, storageDevice }: { device: DiagnosticDevice; storageDevice?: StorageDevice }) {
+  const verdict = deviceQuickVerdict(device, storageDevice);
+  return (
+    <div className={`inlineVerdict ${verdict.tone}`}>
+      <span>{verdict.label}</span>
+      <strong>{verdict.message}</strong>
+    </div>
+  );
+}
+
+function deviceQuickVerdict(device: DiagnosticDevice, storageDevice?: StorageDevice): { tone: StatusTone; label: string; message: string } {
+  const speed = device.negotiated_speed?.mbps;
+  if (storageDevice?.transport === "usb") {
+    if (storageDevice.usb_link_speed?.is_usb3_or_better) {
+      return { tone: "good", label: "Looks good", message: "External drive is on a USB 3-class path; run a read test for real throughput." };
+    }
+    if ((storageDevice.usb_link_speed?.mbps ?? Number.POSITIVE_INFINITY) <= 480) {
+      return { tone: "warning", label: "Likely bottleneck", message: "External drive appears capped at USB 2.0-class speed." };
+    }
+    return { tone: "unknown", label: "Needs test", message: "Drive is detected, but Linkmetry needs more speed evidence." };
+  }
+
+  if (speed !== undefined && speed <= 12) {
+    return { tone: "info", label: "Normal", message: "Low-bandwidth accessory; slow USB speed is expected here." };
+  }
+
+  if (speed !== undefined && speed <= 480 && ["audio", "human-interface", "usb-device"].includes(device.kind)) {
+    return { tone: "info", label: "Probably normal", message: "This class of device usually does not need USB 3 speed." };
+  }
+
+  if (device.negotiated_speed?.is_usb3_or_better) {
+    return { tone: "good", label: "High-speed", message: "USB 3-class link is available for this device." };
+  }
+
+  return { tone: "unknown", label: "Unknown", message: "Connection is visible, but speed evidence is limited." };
 }
 
 

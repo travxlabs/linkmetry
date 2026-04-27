@@ -194,3 +194,11 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .portCount { margin: 12px 0 0; font-size: 0.84rem; }
 .connectedDeviceList { display: grid; gap: 10px; }
 @media (max-width: 980px) { .connectionSplit { grid-template-columns: 1fr; } }
+.inlineVerdict { margin-top: 10px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 13px; padding: 9px 10px; background: rgba(2, 6, 23, 0.32); }
+.inlineVerdict span { display: block; color: #93a4ba; font-size: 0.68rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
+.inlineVerdict strong { display: block; margin-top: 3px; color: #dbeafe; font-size: 0.82rem; line-height: 1.35; }
+.inlineVerdict.good { border-color: rgba(52, 211, 153, 0.24); background: rgba(16, 185, 129, 0.08); }
+.inlineVerdict.good span { color: #86efac; }
+.inlineVerdict.warning { border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.1); }
+.inlineVerdict.warning span { color: #fde68a; }
+.inlineVerdict.info span { color: #93c5fd; }
