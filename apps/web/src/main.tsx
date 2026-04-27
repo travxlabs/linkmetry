@@ -112,7 +112,7 @@ type ScanState =
 type DeviceAction = "explain" | "details" | "path" | "speed";
 type SelectedDeviceAction = { deviceId: string; action: DeviceAction };
 type PortLabels = Record<string, string>;
-type PortMetadata = Record<string, { usb3Verified?: boolean; lastSeenDevice?: string; lastSeenSpeed?: string; lastSeenAt?: string }>;
+type PortMetadata = Record<string, { usb3Verified?: boolean; verifiedWith?: string; verifiedAt?: string; lastSeenDevice?: string; lastSeenSpeed?: string; lastSeenAt?: string }>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
 type Page = "overview" | "ports" | "drives";
 
@@ -196,9 +196,12 @@ function App() {
       for (const device of usbDevices.filter(isPrimaryUserDevice)) {
         const pathId = devicePathId(device);
         const speed = device.negotiated_speed;
+        const verifiedNow = Boolean(speed?.is_usb3_or_better);
         next[pathId] = {
           ...next[pathId],
-          usb3Verified: Boolean(next[pathId]?.usb3Verified || speed?.is_usb3_or_better),
+          usb3Verified: Boolean(next[pathId]?.usb3Verified || verifiedNow),
+          verifiedWith: verifiedNow ? deviceName(device) : next[pathId]?.verifiedWith,
+          verifiedAt: verifiedNow ? report.generated_at : next[pathId]?.verifiedAt,
           lastSeenDevice: deviceName(device),
           lastSeenSpeed: speed?.generation ?? speed?.label ?? "speed unknown",
           lastSeenAt: report.generated_at,
@@ -283,9 +286,25 @@ function PortMappingPage({ devices, storageDevices, portLabels, portMetadata, la
         <h2>Name physical USB ports.</h2>
         <p className="muted">Use this page when you want labels like “Back bottom row, 2 over.” The overview stays focused on actual connected devices.</p>
       </div>
+      <Usb3VerificationGuide />
       <PortMapCards devices={devices} portLabels={portLabels} portMetadata={portMetadata} onLabel={onLabel} />
       <PortFinderGuide devices={devices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={onStartLabeling} onStopLabeling={onStopLabeling} onExportLabels={onExportLabels} onImportLabels={onImportLabels} onLabel={onLabel} onRescan={onRescan} scanning={scanning} />
       <ConnectionMap devices={devices} storageDevices={storageDevices} portLabels={portLabels} onLabel={onLabel} selectedAction={null} onAction={() => undefined} showPortMapping />
+    </section>
+  );
+}
+
+function Usb3VerificationGuide() {
+  return (
+    <section className="card usb3VerifyGuide">
+      <p className="eyebrow">Verify port speed</p>
+      <h2>Use a known-fast device to prove a port is USB 3-capable.</h2>
+      <p className="muted">A USB 2 device only proves that device connected at USB 2 speed. To verify the physical port, plug in the Samsung T7 or another known USB 3 drive, rescan, then label the physical port.</p>
+      <div className="verifySteps">
+        <div><span>1</span><strong>Move the T7</strong><p>Plug the Samsung T7 into the physical port you want to verify.</p></div>
+        <div><span>2</span><strong>Rescan</strong><p>If Linkmetry sees USB 3-class speed, that port is marked verified.</p></div>
+        <div><span>3</span><strong>Name the port</strong><p>Use a human label like “Back bottom row, 2 over.”</p></div>
+      </div>
     </section>
   );
 }
@@ -312,6 +331,7 @@ function PortMapCards({ devices, portLabels, portMetadata, onLabel }: { devices:
               <strong>{portLabels[pathId] ?? "Unnamed physical port"}</strong>
               <p>{device ? `${deviceName(device)} connected now` : meta?.lastSeenDevice ? `Last seen: ${meta.lastSeenDevice}` : "No recognizable device seen yet"}</p>
               <p className="muted">{speed?.generation ?? speed?.label ?? meta?.lastSeenSpeed ?? "speed not known yet"}</p>
+              {usb3Verified ? <p className="verificationNote">Verified with {meta?.verifiedWith ?? deviceName(device!)}.</p> : <p className="verificationNote muted">To verify: plug the T7 into this physical port, rescan, then label it.</p>}
               <PortLabelEditor pathId={pathId} portLabels={portLabels} onLabel={onLabel} />
               <details className="evidencePathDisclosure">
                 <summary>Show technical evidence path</summary>
@@ -409,8 +429,8 @@ function PortFinderGuide({ devices, storageDevices, portLabels, labelingSession,
       </div>
       <div className="portFinderSteps">
         <div><span>1</span><strong>Click Start labeling</strong><p>This saves the current state before you move anything.</p></div>
-        <div><span>2</span><strong>Move one obvious device</strong><p>Move the T7 to the exact physical port you want to identify, like back bottom row, second from left.</p></div>
-        <div><span>3</span><strong>Click Rescan</strong><p>Linkmetry highlights what changed. Name that physical spot in your own words.</p></div>
+        <div><span>2</span><strong>Move one obvious device</strong><p>Use the T7 when you want to verify USB 3 capability, or any obvious device when you only need to identify the physical spot.</p></div>
+        <div><span>3</span><strong>Click Rescan</strong><p>Linkmetry highlights what changed. If a USB 3-class speed is seen, the port is marked verified.</p></div>
       </div>
       {labelingSession.active ? (
         <div className={changedCandidates.length > 0 ? "labelingStatus good" : "labelingStatus"}>
