@@ -867,21 +867,53 @@ function DriveDiagnosticsPage({ cards, storageDevices, usbDevices }: { cards: De
   const externalIndexes = storageDevices
     .map((device, index) => ({ device, index }))
     .filter(({ device }) => device.transport === "usb");
+  const [selectedPath, setSelectedPath] = useState<string | null>(externalIndexes[0]?.device.dev_path ?? null);
+
+  useEffect(() => {
+    if (!externalIndexes.length) {
+      setSelectedPath(null);
+      return;
+    }
+    if (!selectedPath || !externalIndexes.some(({ device }) => device.dev_path === selectedPath)) {
+      setSelectedPath(externalIndexes[0].device.dev_path);
+    }
+  }, [externalIndexes, selectedPath]);
+
+  const selected = externalIndexes.find(({ device }) => device.dev_path === selectedPath) ?? externalIndexes[0];
 
   return (
     <section className="deviceCheckSection driveDiagnosticsPage" id="external-drive-diagnostics">
       <div className="sectionIntro">
         <p className="eyebrow">Drive diagnostics</p>
-        <h2>Test external drives separately.</h2>
-        <p className="muted">This page is for deeper storage checks like safe read tests. The main overview stays focused on what is connected and where.</p>
+        <h2>Choose a drive to check.</h2>
+        <p className="muted">This page is for storage-specific checks. Linkmetry shows the safe read-only information first; speed tests only run when you click a button.</p>
       </div>
       {externalIndexes.length > 0 ? (
-        externalIndexes.map(({ device, index }) => (
-          <DeviceSummary key={device.dev_path} card={cards[index]} device={device} usbDevices={usbDevices} />
-        ))
+        <>
+          <DriveChooser selectedPath={selected?.device.dev_path ?? null} drives={externalIndexes.map(({ device, index }) => ({ device, card: cards[index] }))} onSelect={setSelectedPath} />
+          {selected ? <DeviceSummary key={selected.device.dev_path} card={cards[selected.index]} device={selected.device} usbDevices={usbDevices} /> : null}
+        </>
       ) : (
         <section className="card"><h2>No external drives found</h2><p className="muted">Plug in an external USB drive to test speed and cable/path health.</p></section>
       )}
+    </section>
+  );
+}
+
+function DriveChooser({ drives, selectedPath, onSelect }: { drives: Array<{ device: StorageDevice; card: DeviceCard }>; selectedPath: string | null; onSelect: (path: string) => void }) {
+  return (
+    <section className="card driveChooserCard">
+      <p className="eyebrow">Connected drives</p>
+      <h2>{drives.length} external drive{drives.length === 1 ? "" : "s"} ready to inspect</h2>
+      <div className="driveChooserGrid">
+        {drives.map(({ device, card }) => (
+          <button type="button" className={device.dev_path === selectedPath ? "active" : ""} key={device.dev_path} onClick={() => onSelect(device.dev_path)}>
+            <span>{card.status === "good" ? "Looks good" : card.status === "warning" ? "Needs attention" : "Needs check"}</span>
+            <strong>{card.title}</strong>
+            <p>{device.usb_link_speed?.generation ?? device.usb_link_speed?.label ?? "USB speed unknown"}</p>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
@@ -1115,10 +1147,35 @@ function DeviceSummary({ card, device, usbDevices }: { card: DeviceCard; device?
         <FriendlyFact label="Likely status" value={verdict?.title ?? "Needs a speed test"} />
       </div>
 
+      {device ? <DriveSafetySummary device={device} card={card} /> : null}
       {device ? <BenchmarkControl device={device} /> : null}
       {device ? <ConnectionPathPanel device={device} path={connectionPath} /> : null}
       {device ? <EvidencePanel device={device} /> : null}
     </section>
+  );
+}
+
+function DriveSafetySummary({ device, card }: { device: StorageDevice; card: DeviceCard }) {
+  const benchmarkMount = benchmarkableMountpoints(device)[0];
+  const isFast = Boolean(device.usb_link_speed?.is_usb3_or_better);
+  return (
+    <div className="driveSafetySummary">
+      <div>
+        <span>Safe checks</span>
+        <strong>Already done</strong>
+        <p>Linkmetry read device identity, mount locations, and the current USB link. No write test has run.</p>
+      </div>
+      <div>
+        <span>Current verdict</span>
+        <strong>{card.primary_verdict?.title ?? (isFast ? "Looks good" : "Needs a closer look")}</strong>
+        <p>{card.primary_verdict?.message ?? "Run the explicit read test only if you want real throughput numbers."}</p>
+      </div>
+      <div>
+        <span>Next safe target</span>
+        <strong>{benchmarkMount ?? "No safe mount found"}</strong>
+        <p>{benchmarkMount ? "Use this for the optional read-only speed test." : "Linkmetry cannot auto-pick a safe read-test location for this drive yet."}</p>
+      </div>
+    </div>
   );
 }
 
@@ -1227,9 +1284,9 @@ function BenchmarkControl({ device }: { device: StorageDevice }) {
   return (
     <div className="benchmarkBox">
       <div>
-        <p className="eyebrow">Speed test</p>
-        <h3>Check how fast this drive can read</h3>
-        <p className="muted">Safe read-only test. Click auto-pick and Linkmetry will choose a large readable file on this drive. It does not write to the drive.</p>
+        <p className="eyebrow">Optional read-only test</p>
+        <h3>Run a speed check only if you want throughput numbers</h3>
+        <p className="muted">This is explicit and read-only. Linkmetry reads an existing large file; it does not write to the drive or benchmark automatically.</p>
       </div>
       {isUsbStorage ? (
         <>
