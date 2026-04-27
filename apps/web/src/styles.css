@@ -232,3 +232,6 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .accessoryDisclosure summary strong { color: #bfdbfe; font-size: 0.86rem; }
 .compactAccessoryList { margin-top: 12px; }
 .compactAccessoryList .portDevice { background: rgba(15, 23, 42, 0.42); }
+.advancedHint { color: #94a3b8; }
+.portDetailsDisclosure summary span,
+.accessoryDisclosure summary span { color: #fbbf24; }

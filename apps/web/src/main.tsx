@@ -306,10 +306,10 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
           {accessoryDevices.length > 0 ? (
             <details className="accessoryDisclosure">
               <summary>
-                <span>Internal/accessory endpoints</span>
-                <strong>{accessoryDevices.length} extra USB endpoint{accessoryDevices.length === 1 ? "" : "s"}</strong>
+                <span>Advanced · internal/accessory endpoints</span>
+                <strong>{accessoryDevices.length} hidden USB endpoint{accessoryDevices.length === 1 ? "" : "s"}</strong>
               </summary>
-              <p className="muted">These are real USB endpoints, but they are usually internal controllers or low-level accessories, not the main devices people think of first.</p>
+              <p className="muted">Shown for troubleshooting only. These may be RGB controllers, cooler controllers, receivers, or other low-level endpoints. They are not included in the main device count.</p>
               <div className="connectedDeviceList compactAccessoryList">
                 {accessoryDevices.map((device) => (
                   <div className="portDevice" key={device.id}>
@@ -329,10 +329,10 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
 
       <details className="portDetailsDisclosure">
         <summary>
-          <span>Technical ports & paths</span>
-          <strong>Show USB buses, hubs, and topology IDs</strong>
+          <span>Advanced · technical ports & paths</span>
+          <strong>Show raw USB buses, hubs, and topology IDs</strong>
         </summary>
-        <p className="muted evidenceNote">These are Linux topology paths such as <strong>1-10</strong> or <strong>2-7.2</strong>. They are useful for identifying physical ports, but they are not the main device list.</p>
+        <p className="muted evidenceNote">Advanced troubleshooting view. These are Linux topology paths such as <strong>1-10</strong> or <strong>2-7.2</strong>. They help identify physical ports, but they are not human-friendly device names and are not included in the main count.</p>
         <div className="portGrid compactPorts">
           {map.map((port) => (
             <article className="portCard" key={port.root.id}>
@@ -585,16 +585,16 @@ function UsbInventory({ devices, storageDevices }: { devices: DiagnosticDevice[]
     <details className="card technicalDetails">
       <summary>
         <div>
-          <p className="eyebrow">Technical details</p>
-          <h2>Raw USB/device list</h2>
-          <p className="muted">For troubleshooting: accessories, hubs, controllers, and lower-level USB details.</p>
+          <p className="eyebrow">Advanced technical details</p>
+          <h2>Raw USB entries</h2>
+          <p className="muted">For debugging only: this includes hubs, controllers, topology nodes, and low-level endpoints that normal users do not think of as “devices.”</p>
         </div>
-        <span className="detailsPill">Show details</span>
+        <span className="detailsPill">Show advanced details</span>
       </summary>
 
-      <InventoryGroup title="Everyday accessories" description="Keyboards, receivers, lighting controllers, and other low-bandwidth devices. These are usually fine at lower speeds." devices={groups.peripherals} empty="No everyday accessories detected." />
-      <InventoryGroup title="Other notable USB devices" description="Audio/video/network devices and fast USB devices that are not already shown above." devices={groups.important} empty="No other standout devices detected." />
-      <InventoryGroup title="Hubs & controllers" description="USB hubs, root buses, and controller paths. Useful for troubleshooting, but not the first thing most people need." devices={groups.infrastructure} empty="No hub/controller devices detected." />
+      <InventoryGroup title="Raw accessory endpoints" description="Low-bandwidth USB endpoints exposed by the OS. Some are recognizable accessories; some may be internal controller pieces." devices={groups.peripherals} empty="No raw accessory endpoints detected." />
+      <InventoryGroup title="Raw notable endpoints" description="Audio/video/network/high-speed endpoints from the raw USB scan that are not already part of the main simplified view." devices={groups.important} empty="No raw notable endpoints detected." />
+      <InventoryGroup title="Raw hubs, buses, and controllers" description="USB hubs, root buses, and controller paths. Useful for port mapping and debugging; not counted as user-facing devices." devices={groups.infrastructure} empty="No hub/controller entries detected." />
     </details>
   );
 }
