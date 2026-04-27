@@ -217,3 +217,11 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .pathIdLine { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 7px !important; color: #cbd5e1 !important; }
 .pathIdLine span { color: #7dd3fc; font-size: 0.68rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
 @media (max-width: 780px) { .portFinderHeader { flex-direction: column; } .portFinderSteps { grid-template-columns: 1fr; } }
+.deviceFirstLayout { margin-top: 18px; }
+.deviceFirstLayout h3 { margin: 0 0 12px; color: #edf5ff; font-size: 1rem; }
+.portDetailsDisclosure { margin-top: 18px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 18px; padding: 14px; background: rgba(2, 6, 23, 0.28); }
+.portDetailsDisclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; list-style: none; }
+.portDetailsDisclosure summary::-webkit-details-marker { display: none; }
+.portDetailsDisclosure summary span { color: #93a4ba; font-size: 0.72rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+.portDetailsDisclosure summary strong { color: #bfdbfe; font-size: 0.9rem; }
+.portDetailsDisclosure[open] summary { margin-bottom: 12px; }

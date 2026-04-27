@@ -186,8 +186,8 @@ function App() {
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {summary ? <FriendlySummary summary={summary} /> : null}
-      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} selectedAction={selectedAction} onAction={setSelectedAction} /> : null}
+      {report ? <PortFinderGuide devices={usbDevices} storageDevices={storageDevices} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {report ? <DevicesToCheck cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
       {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
     </main>
@@ -280,32 +280,13 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
 
   return (
     <section className="card connectionMapCard">
-      <p className="eyebrow">Control panel</p>
-      <h2>Ports, paths, and connected devices</h2>
-      <p className="muted inventoryIntro">Ports and hubs are connection locations. Devices like lighting controllers, keyboards, drives, and audio gear are shown separately below.</p>
-      <p className="muted evidenceNote">Connector shape such as USB-C will only appear when the OS exposes real evidence. Linkmetry will not guess.</p>
+      <p className="eyebrow">Devices first</p>
+      <h2>Actual devices connected right now</h2>
+      <p className="muted inventoryIntro">Start here: these are the things you recognize — drives, keyboards, mice, audio interfaces, receivers, and accessories. Technical port/path IDs are shown only as supporting evidence.</p>
 
-      <div className="connectionSplit">
+      <div className="deviceFirstLayout">
         <div>
-          <h3>Ports & paths</h3>
-          <div className="portGrid compactPorts">
-            {map.map((port) => (
-              <article className="portCard" key={port.root.id}>
-                <div className="portHeader">
-                  <div>
-                    <span>{port.root.id}</span>
-                    <strong>{port.root.id.startsWith("usb") ? `USB bus ${port.root.id.replace("usb", "")}` : deviceName(port.root)}</strong>
-                  </div>
-                  <em>{port.root.negotiated_speed?.generation ?? port.root.negotiated_speed?.label ?? "speed unknown"}</em>
-                </div>
-                <p className="muted portCount">{summarizePort(port.children)}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3>Connected devices</h3>
+          <h3>Devices</h3>
           <div className="connectedDeviceList">
             {attachedDevices.map((device) => (
               <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
@@ -323,6 +304,28 @@ function ConnectionMap({ devices, storageDevices, selectedAction, onAction }: { 
           </div>
         </div>
       </div>
+
+      <details className="portDetailsDisclosure">
+        <summary>
+          <span>Technical ports & paths</span>
+          <strong>Show USB buses, hubs, and topology IDs</strong>
+        </summary>
+        <p className="muted evidenceNote">These are Linux topology paths such as <strong>1-10</strong> or <strong>2-7.2</strong>. They are useful for identifying physical ports, but they are not the main device list.</p>
+        <div className="portGrid compactPorts">
+          {map.map((port) => (
+            <article className="portCard" key={port.root.id}>
+              <div className="portHeader">
+                <div>
+                  <span>{port.root.id}</span>
+                  <strong>{port.root.id.startsWith("usb") ? `USB bus ${port.root.id.replace("usb", "")}` : deviceName(port.root)}</strong>
+                </div>
+                <em>{port.root.negotiated_speed?.generation ?? port.root.negotiated_speed?.label ?? "speed unknown"}</em>
+              </div>
+              <p className="muted portCount">{summarizePort(port.children)}</p>
+            </article>
+          ))}
+        </div>
+      </details>
     </section>
   );
 }
