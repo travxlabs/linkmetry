@@ -281,3 +281,11 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .preScanCard { text-align: center; padding: 34px; }
 .preScanCard h2 { margin-bottom: 10px; }
 .preScanCard .scanButton { margin-top: 18px; }
+.scanEffectCard { text-align: center; overflow: hidden; position: relative; }
+.scanOrb { width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 999px; display: grid; place-items: center; background: radial-gradient(circle, rgba(125, 211, 252, 0.25), rgba(16, 185, 129, 0.08)); box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.2); animation: scanPulse 1.15s ease-in-out infinite; }
+.scanOrb span { width: 42px; height: 42px; border-radius: 999px; border: 3px solid rgba(125, 211, 252, 0.35); border-top-color: #7dd3fc; animation: scanSpin 0.8s linear infinite; }
+.scanProgress { height: 8px; border-radius: 999px; overflow: hidden; background: rgba(148, 163, 184, 0.16); margin-top: 22px; }
+.scanProgress span { display: block; height: 100%; width: 45%; border-radius: inherit; background: linear-gradient(90deg, #7dd3fc, #a7f3d0); animation: scanSweep 2s ease-in-out infinite; }
+@keyframes scanPulse { 0%, 100% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.16); } 50% { transform: scale(1.03); box-shadow: 0 0 0 18px rgba(125, 211, 252, 0.03); } }
+@keyframes scanSpin { to { transform: rotate(360deg); } }
+@keyframes scanSweep { 0% { transform: translateX(-120%); } 100% { transform: translateX(240%); } }

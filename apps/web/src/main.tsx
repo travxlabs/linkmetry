@@ -158,12 +158,15 @@ function App() {
 
   async function runScan() {
     setScan((current) => ({ status: "loading", report: current.report }));
+    const minimumScanTime = wait(2000);
     try {
       const response = await fetch("/api/scan", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? `Scan failed with HTTP ${response.status}`);
+      await minimumScanTime;
       setScan({ status: "ready", report: payload });
     } catch (error) {
+      await minimumScanTime;
       setScan((current) => ({
         status: "error",
         report: current.report,
@@ -245,10 +248,12 @@ function PreScanCard({ onScan }: { onScan: () => void }) {
 
 function LoadingCard() {
   return (
-    <section className="card">
+    <section className="card scanEffectCard">
+      <div className="scanOrb" aria-hidden="true"><span /></div>
       <p className="eyebrow">Scanning</p>
-      <h2>Asking the Rust inspector what is connected…</h2>
-      <p className="muted">This runs the Linkmetry CLI locally on trav-dev and returns normalized USB + storage data.</p>
+      <h2>Checking connected devices…</h2>
+      <p className="muted">Looking for recognizable devices, external drives, and port changes. This takes about two seconds.</p>
+      <div className="scanProgress" aria-hidden="true"><span /></div>
     </section>
   );
 }
@@ -1308,4 +1313,8 @@ function loadPortLabels(): PortLabels {
   } catch {
     return {};
   }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
