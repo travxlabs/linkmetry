@@ -76,3 +76,39 @@ Combined storage diagnosis:
 ```bash
 cargo run -p linkmetry-cli -- diagnose-storage --iterations 3 --pretty /path/to/large/file
 ```
+
+## Testing workflow
+
+For the current product loop, use a known-fast external drive such as the Samsung T7:
+
+1. Open the live preview.
+2. Run a scan to save a baseline.
+3. Move the drive or another obvious device to one different USB port.
+4. Run another scan.
+5. Check **Recommended fixes**, **Map ports**, and **History**.
+6. Label the port while the change is fresh.
+7. Export a Markdown/JSON diagnostic report if you need to share results.
+
+The app is designed to keep raw USB topology available as evidence while keeping the normal workflow focused on recognizable devices, friendly labels, and plain-English verdicts.
+
+## Live preview helper
+
+```bash
+./scripts/run-live-preview.sh
+```
+
+The helper builds the web UI, builds the Rust CLI, creates `.linkmetry-data/`, and starts the local API/UI server. App state is saved to `.linkmetry-data/app-data.json` and is ignored by git.
+
+## Current UI features
+
+- Manual safe scan; no automatic testing on page load
+- Device-first overview with advanced USB details collapsed
+- Guided setup checklist
+- Recommended fixes panel
+- Physical port labeling and USB 3 verification workflow
+- Scan history with latest comparison and any-two-scan comparison page
+- Known device names and editable aliases
+- External drive diagnostics with explicit read-only benchmark action
+- Persistent app data via `/api/app-data` with localStorage fallback
+- Full app-data backup/restore
+- Markdown/JSON diagnostic report export

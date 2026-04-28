@@ -116,7 +116,7 @@ type KnownDeviceLabels = Record<string, { name: string; lastSeenAt: string; last
 type AppData = { portLabels: PortLabels; portMetadata: PortMetadata; knownDevices: KnownDeviceLabels; scanHistory: ScanHistoryEntry[]; updatedAt?: string | null };
 type PortMetadata = Record<string, { usb3Verified?: boolean; verifiedWith?: string; verifiedAt?: string; lastSeenDevice?: string; lastSeenSpeed?: string; lastSeenAt?: string }>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
-type Page = "overview" | "ports" | "drives";
+type Page = "overview" | "ports" | "drives" | "history";
 type ScanHistoryEntry = { id: string; label: string; generated_at: string; report: LiveScanReport };
 type ScanChange = { tone: StatusTone; title: string; message: string };
 type ScanComparison = { headline: string; subline: string; changes: ScanChange[] };
@@ -190,6 +190,17 @@ function App() {
     setKnownDeviceLabels(data.knownDevices);
     setScanHistory(data.scanHistory.slice(0, 8));
     persistAppData({ ...data, scanHistory: data.scanHistory.slice(0, 8) });
+  }
+
+  function renameKnownDevice(device: DiagnosticDevice, name: string) {
+    const key = deviceIdentityKey(device);
+    setKnownDeviceLabels((current) => {
+      const fallback = current[key] ?? { name: deviceName(device), lastSeenAt: new Date().toISOString(), lastSeenPath: devicePathId(device), lastSeenSpeed: device.negotiated_speed?.generation ?? device.negotiated_speed?.label };
+      const next = { ...current, [key]: { ...fallback, name: name.trim() || deviceName(device) } };
+      window.localStorage.setItem("linkmetry.knownDevices", JSON.stringify(next));
+      syncAppData({ knownDevices: next });
+      return next;
+    });
   }
 
   async function runScan() {
@@ -312,7 +323,7 @@ function App() {
       {report ? <GettingStartedGuide onScan={runScan} onPage={setPage} scanning={scan.status === "loading"} portLabelCount={Object.keys(portLabels).length} scanCount={scanHistory.length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
-      {report ? <PageTabs page={page} onPage={setPage} portCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
+      {report ? <PageTabs page={page} onPage={setPage} portCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} historyCount={scanHistory.length} /> : null}
       {page === "overview" ? (
         <>
           {summary ? <FriendlySummary summary={summary} /> : null}
@@ -321,22 +332,24 @@ function App() {
           {report ? <AppDataBackup data={currentAppData()} onImport={importAppData} /> : null}
           {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => { const next = saveClearedScanHistory(); setScanHistory(next); syncAppData({ scanHistory: next }); }} /> : null}
           {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
-          {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
+          {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onKnownDeviceRename={renameKnownDevice} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
           {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
         </>
       ) : null}
-      {page === "ports" && report ? <PortMappingPage devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} portMetadata={portMetadata} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
+      {page === "ports" && report ? <PortMappingPage devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onKnownDeviceRename={renameKnownDevice} portMetadata={portMetadata} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {page === "drives" && report ? <DriveDiagnosticsPage cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
+      {page === "history" && report ? <ScanHistoryPage history={scanHistory} portLabels={portLabels} /> : null}
     </main>
   );
 }
 
-function PageTabs({ page, onPage, portCount, driveCount }: { page: Page; onPage: (page: Page) => void; portCount: number; driveCount: number }) {
+function PageTabs({ page, onPage, portCount, driveCount, historyCount }: { page: Page; onPage: (page: Page) => void; portCount: number; driveCount: number; historyCount: number }) {
   return (
     <nav className="pageTabs" aria-label="Linkmetry sections">
       <button type="button" className={page === "overview" ? "active" : ""} onClick={() => onPage("overview")}>Overview</button>
       <button type="button" className={page === "ports" ? "active" : ""} onClick={() => onPage("ports")}>Map ports{portCount ? ` (${portCount})` : ""}</button>
       <button type="button" className={page === "drives" ? "active" : ""} onClick={() => onPage("drives")}>Check drives{driveCount ? ` (${driveCount})` : ""}</button>
+      <button type="button" className={page === "history" ? "active" : ""} onClick={() => onPage("history")}>History{historyCount ? ` (${historyCount})` : ""}</button>
     </nav>
   );
 }
@@ -358,7 +371,7 @@ function OverviewNextActions({ onPage, portLabelCount, driveCount }: { onPage: (
   );
 }
 
-function PortMappingPage({ devices, storageDevices, portLabels, knownDeviceLabels, portMetadata, labelingSession, onStartLabeling, onStopLabeling, onExportLabels, onImportLabels, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels; portMetadata: PortMetadata; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onExportLabels: () => void; onImportLabels: (labels: PortLabels) => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
+function PortMappingPage({ devices, storageDevices, portLabels, knownDeviceLabels, onKnownDeviceRename, portMetadata, labelingSession, onStartLabeling, onStopLabeling, onExportLabels, onImportLabels, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels; onKnownDeviceRename: (device: DiagnosticDevice, name: string) => void; portMetadata: PortMetadata; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onExportLabels: () => void; onImportLabels: (labels: PortLabels) => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
   return (
     <section className="portMappingPage">
       <div className="sectionIntro">
@@ -369,7 +382,7 @@ function PortMappingPage({ devices, storageDevices, portLabels, knownDeviceLabel
       <Usb3VerificationGuide />
       <PortMapCards devices={devices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} portMetadata={portMetadata} onLabel={onLabel} />
       <PortFinderGuide devices={devices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={onStartLabeling} onStopLabeling={onStopLabeling} onExportLabels={onExportLabels} onImportLabels={onImportLabels} onLabel={onLabel} onRescan={onRescan} scanning={scanning} />
-      <ConnectionMap devices={devices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onLabel={onLabel} selectedAction={null} onAction={() => undefined} showPortMapping />
+      <ConnectionMap devices={devices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onKnownDeviceRename={onKnownDeviceRename} onLabel={onLabel} selectedAction={null} onAction={() => undefined} showPortMapping />
     </section>
   );
 }
@@ -601,6 +614,7 @@ function DiagnosticReportExport({ report, summary, comparison, portLabels, known
       </div>
       <div className="diagnosticExportActions">
         <button type="button" onClick={copySummary}>Copy summary</button>
+        <button type="button" onClick={() => downloadMarkdown(diagnostic, report.generated_at, setStatus)}>Download Markdown</button>
         <button type="button" onClick={downloadJson}>Download JSON</button>
       </div>
       {status ? <p className="diagnosticExportStatus">{status}</p> : null}
@@ -649,6 +663,35 @@ function AppDataBackup({ data, onImport }: { data: AppData; onImport: (data: App
         <label>Import backup<input type="file" accept="application/json,.json" onChange={(event) => importBackup(event.target.files?.[0])} /></label>
       </div>
       {status ? <p className="appDataBackupStatus">{status}</p> : null}
+    </section>
+  );
+}
+
+function ScanHistoryPage({ history, portLabels }: { history: ScanHistoryEntry[]; portLabels: PortLabels }) {
+  const [currentId, setCurrentId] = useState(history[0]?.id ?? "");
+  const [compareId, setCompareId] = useState(history[1]?.id ?? "");
+
+  useEffect(() => {
+    if (history.length && !history.some((entry) => entry.id === currentId)) setCurrentId(history[0].id);
+    if (history.length > 1 && !history.some((entry) => entry.id === compareId)) setCompareId(history[1].id);
+  }, [history, currentId, compareId]);
+
+  const current = history.find((entry) => entry.id === currentId) ?? history[0];
+  const previous = history.find((entry) => entry.id === compareId) ?? history[1];
+  const comparison = current && previous ? compareScans(previous.report, current.report, portLabels) : null;
+
+  return (
+    <section className="historyPage">
+      <div className="sectionIntro"><p className="eyebrow">Scan history</p><h2>Compare any two scans.</h2><p className="muted">Use this when you move a cable, change ports, or want to confirm that a fix worked.</p></div>
+      {history.length < 2 ? <section className="card"><h2>Need at least two scans</h2><p className="muted">Run another scan after changing something to compare results.</p></section> : (
+        <section className="card compareScansCard">
+          <div className="compareSelectors">
+            <label><span>Current scan</span><select value={current?.id ?? ""} onChange={(event) => setCurrentId(event.target.value)}>{history.map((entry) => <option value={entry.id} key={entry.id}>{entry.label}</option>)}</select></label>
+            <label><span>Compare with</span><select value={previous?.id ?? ""} onChange={(event) => setCompareId(event.target.value)}>{history.map((entry) => <option value={entry.id} key={entry.id}>{entry.label}</option>)}</select></label>
+          </div>
+          {comparison ? <div className="changeList historyCompareChanges">{comparison.changes.map((change, index) => <div className={`changeItem ${change.tone}`} key={`${change.title}-${index}`}><span>{statusLabel(change.tone)}</span><strong>{change.title}</strong><p>{change.message}</p></div>)}</div> : null}
+        </section>
+      )}
     </section>
   );
 }
@@ -772,7 +815,7 @@ function PortLabelBackup({ labelCount, onExport, onImport }: { labels: PortLabel
   );
 }
 
-function ConnectionMap({ devices, storageDevices, portLabels, knownDeviceLabels, onLabel, selectedAction, onAction, showPortMapping = false }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels; onLabel: (pathId: string, label: string) => void; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void; showPortMapping?: boolean }) {
+function ConnectionMap({ devices, storageDevices, portLabels, knownDeviceLabels, onKnownDeviceRename, onLabel, selectedAction, onAction, showPortMapping = false }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels; onKnownDeviceRename: (device: DiagnosticDevice, name: string) => void; onLabel: (pathId: string, label: string) => void; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void; showPortMapping?: boolean }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
   const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)).sort(deviceImportanceSort), [devices]);
   const primaryDevices = attachedDevices.filter(isPrimaryUserDevice);
@@ -795,6 +838,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, knownDeviceLabels,
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                 <strong>{friendlyDeviceName(device, knownDeviceLabels)}</strong>
                 <KnownDevicePill device={device} knownDeviceLabels={knownDeviceLabels} />
+                <KnownDeviceAliasEditor device={device} knownDeviceLabels={knownDeviceLabels} onRename={onKnownDeviceRename} />
                 <p>{deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
                 {showPortMapping ? <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} /> : null}
@@ -825,6 +869,7 @@ function ConnectionMap({ devices, storageDevices, portLabels, knownDeviceLabels,
                     <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
                     <strong>{friendlyDeviceName(device, knownDeviceLabels)}</strong>
                     <KnownDevicePill device={device} knownDeviceLabels={knownDeviceLabels} />
+                    <KnownDeviceAliasEditor device={device} knownDeviceLabels={knownDeviceLabels} onRename={onKnownDeviceRename} />
                     <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                     <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} compact />
                     <details className="evidencePathDisclosure">
@@ -876,6 +921,26 @@ function KnownDevicePill({ device, knownDeviceLabels }: { device: DiagnosticDevi
   const known = knownDeviceLabels[deviceIdentityKey(device)];
   if (!known) return null;
   return <span className="knownDevicePill">Known device</span>;
+}
+
+function KnownDeviceAliasEditor({ device, knownDeviceLabels, onRename }: { device: DiagnosticDevice; knownDeviceLabels: KnownDeviceLabels; onRename: (device: DiagnosticDevice, name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const currentName = friendlyDeviceName(device, knownDeviceLabels);
+  const [draft, setDraft] = useState(currentName);
+
+  useEffect(() => setDraft(currentName), [currentName]);
+
+  if (!editing) {
+    return <button type="button" className="deviceAliasButton" onClick={() => setEditing(true)}>Rename device</button>;
+  }
+
+  return (
+    <div className="deviceAliasEditor">
+      <input value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus />
+      <button type="button" onClick={() => { onRename(device, draft); setEditing(false); }}>Save</button>
+      <button type="button" className="plainButton" onClick={() => { setDraft(currentName); setEditing(false); }}>Cancel</button>
+    </div>
+  );
 }
 
 function summarizePort(children: DiagnosticDevice[]) {
@@ -1889,6 +1954,21 @@ function formatDiagnosticSummary(report: ReturnType<typeof buildDiagnosticExport
     lines.push("", `Changes: ${report.comparison.headline}`, ...report.comparison.changes.map((change) => `- ${change.title}: ${change.message}`));
   }
   return lines.join("\n");
+}
+
+function downloadMarkdown(diagnostic: ReturnType<typeof buildDiagnosticExport>, generatedAt: string, setStatus: (status: string) => void) {
+  const markdown = `# Linkmetry Diagnostic Report
+
+${formatDiagnosticSummary(diagnostic)}
+`;
+  const blob = new Blob([markdown], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `linkmetry-report-${safeTimestamp(generatedAt)}.md`;
+  link.click();
+  URL.revokeObjectURL(url);
+  setStatus("Downloaded Markdown report.");
 }
 
 function safeTimestamp(value: string) {
