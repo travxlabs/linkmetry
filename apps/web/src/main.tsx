@@ -120,6 +120,7 @@ type Page = "overview" | "ports" | "drives";
 type ScanHistoryEntry = { id: string; label: string; generated_at: string; report: LiveScanReport };
 type ScanChange = { tone: StatusTone; title: string; message: string };
 type ScanComparison = { headline: string; subline: string; changes: ScanChange[] };
+type Recommendation = { tone: StatusTone; title: string; message: string; actionLabel: string; targetPage: Page };
 
 function App() {
   const [scan, setScan] = useState<ScanState>({ status: "idle" });
@@ -303,6 +304,7 @@ function App() {
       {page === "overview" ? (
         <>
           {summary ? <FriendlySummary summary={summary} /> : null}
+          {report ? <RecommendedFixes report={report} comparison={comparison} portLabels={portLabels} onPage={setPage} /> : null}
           {report && summary ? <DiagnosticReportExport report={report} summary={summary} comparison={comparison} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} /> : null}
           {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => { const next = saveClearedScanHistory(); setScanHistory(next); syncAppData({ scanHistory: next }); }} /> : null}
           {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
@@ -520,6 +522,32 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
             <strong>{card.value}</strong>
             <p>{card.note}</p>
           </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RecommendedFixes({ report, comparison, portLabels, onPage }: { report: LiveScanReport; comparison: ScanComparison | null; portLabels: PortLabels; onPage: (page: Page) => void }) {
+  const recommendations = buildRecommendations(report, comparison, portLabels);
+  return (
+    <section className="card recommendationsCard">
+      <div className="recommendationsHeader">
+        <div>
+          <p className="eyebrow">Recommended fixes</p>
+          <h2>{recommendations.some((item) => item.tone === "warning") ? "Start with these checks" : "Nothing urgent found"}</h2>
+          <p className="muted">Linkmetry prioritizes the next useful action instead of making you read every detail.</p>
+        </div>
+        <span>{recommendations.length} suggestion{recommendations.length === 1 ? "" : "s"}</span>
+      </div>
+      <div className="recommendationList">
+        {recommendations.map((item) => (
+          <button type="button" className={item.tone} key={item.title} onClick={() => onPage(item.targetPage)}>
+            <span>{statusLabel(item.tone)}</span>
+            <strong>{item.title}</strong>
+            <p>{item.message}</p>
+            <b>{item.actionLabel}</b>
+          </button>
         ))}
       </div>
     </section>
@@ -1692,6 +1720,80 @@ function formatBytes(bytes: number) {
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+
+function buildRecommendations(report: LiveScanReport, comparison: ScanComparison | null, portLabels: PortLabels): Recommendation[] {
+  const recommendations: Recommendation[] = [];
+  const storageByUsbId = new Map(report.storage.devices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device]));
+  const primaryDevices = report.usb.devices.filter(isPrimaryUserDevice);
+  const externalDrives = report.storage.devices.filter((device) => device.transport === "usb");
+  const slowExternalDrive = externalDrives.find((device) => (device.usb_link_speed?.mbps ?? Number.POSITIVE_INFINITY) <= 480);
+  const movedOrSlower = comparison?.changes.find((change) => change.tone === "warning" || change.title.includes("moved") || change.title.includes("speed changed"));
+  const unlabeledFastPath = primaryDevices.find((device) => device.negotiated_speed?.is_usb3_or_better && !portLabels[devicePathId(device)]);
+  const untestedDrive = externalDrives.find((device) => device.usb_link_speed?.is_usb3_or_better);
+  const unknownSpeedDevice = primaryDevices.find((device) => !device.negotiated_speed && !storageByUsbId.has(device.id));
+
+  if (slowExternalDrive) {
+    recommendations.push({
+      tone: "warning",
+      title: `${slowExternalDrive.usb_product ?? slowExternalDrive.model ?? slowExternalDrive.name} may be on a slow link`,
+      message: `This external drive is reporting ${slowExternalDrive.usb_link_speed?.label ?? "USB 2-class speed"}. Try another port or cable, then rescan to compare.`,
+      actionLabel: "Open drive checks",
+      targetPage: "drives",
+    });
+  }
+
+  if (movedOrSlower) {
+    recommendations.push({
+      tone: movedOrSlower.tone,
+      title: movedOrSlower.title,
+      message: `${movedOrSlower.message} Use the port map to label the result while it is fresh.`,
+      actionLabel: "Open port map",
+      targetPage: "ports",
+    });
+  }
+
+  if (unlabeledFastPath) {
+    recommendations.push({
+      tone: "info",
+      title: "Label the fast port you just proved",
+      message: `${deviceName(unlabeledFastPath)} is showing ${unlabeledFastPath.negotiated_speed?.generation ?? unlabeledFastPath.negotiated_speed?.label}. Save a friendly port name so you can recognize it later.`,
+      actionLabel: "Name this port",
+      targetPage: "ports",
+    });
+  }
+
+  if (untestedDrive && !slowExternalDrive) {
+    recommendations.push({
+      tone: "good",
+      title: "External drive link looks good",
+      message: "The negotiated USB link is fast. Run the optional read test only if you want real throughput numbers.",
+      actionLabel: "Open drive checks",
+      targetPage: "drives",
+    });
+  }
+
+  if (unknownSpeedDevice) {
+    recommendations.push({
+      tone: "unknown",
+      title: "One device has unclear speed details",
+      message: `${deviceName(unknownSpeedDevice)} is connected, but Linux did not expose a clear negotiated speed. Keep it in troubleshooting details unless it is causing a problem.`,
+      actionLabel: "Review devices",
+      targetPage: "overview",
+    });
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push({
+      tone: "good",
+      title: "Current setup looks clean",
+      message: "No obvious drive bottlenecks or confusing port changes stood out. The next useful step is labeling any ports you care about.",
+      actionLabel: "Open port map",
+      targetPage: "ports",
+    });
+  }
+
+  return recommendations.slice(0, 4);
+}
 
 function buildDiagnosticExport(report: LiveScanReport, summary: FriendlySummaryData, comparison: ScanComparison | null, portLabels: PortLabels, knownDeviceLabels: KnownDeviceLabels) {
   const storageByUsbId = new Map(report.storage.devices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device]));
