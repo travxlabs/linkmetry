@@ -387,3 +387,9 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .setupSteps b { color: #d1fae5; font-size: 0.82rem; }
 @media (max-width: 920px) { .setupSteps { grid-template-columns: 1fr; } }
 @media (max-width: 680px) { .gettingStartedHeader { flex-direction: column; } }
+.diagnosticExportCard { margin-top: 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; }
+.diagnosticExportActions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.diagnosticExportActions button { border: 1px solid rgba(125, 211, 252, 0.24); border-radius: 999px; padding: 10px 13px; color: #bfdbfe; background: rgba(14, 165, 233, 0.08); cursor: pointer; font-weight: 850; }
+.diagnosticExportActions button:first-child { color: #05111f; background: linear-gradient(135deg, #7dd3fc, #a7f3d0); border-color: transparent; }
+.diagnosticExportStatus { grid-column: 1 / -1; margin: 0; color: #d1fae5; font-weight: 800; }
+@media (max-width: 760px) { .diagnosticExportCard { grid-template-columns: 1fr; } .diagnosticExportActions { justify-content: flex-start; } }

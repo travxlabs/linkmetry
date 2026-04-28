@@ -303,6 +303,7 @@ function App() {
       {page === "overview" ? (
         <>
           {summary ? <FriendlySummary summary={summary} /> : null}
+          {report && summary ? <DiagnosticReportExport report={report} summary={summary} comparison={comparison} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} /> : null}
           {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => { const next = saveClearedScanHistory(); setScanHistory(next); syncAppData({ scanHistory: next }); }} /> : null}
           {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
           {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
@@ -521,6 +522,47 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+function DiagnosticReportExport({ report, summary, comparison, portLabels, knownDeviceLabels }: { report: LiveScanReport; summary: FriendlySummaryData; comparison: ScanComparison | null; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels }) {
+  const [status, setStatus] = useState<string | null>(null);
+  const diagnostic = buildDiagnosticExport(report, summary, comparison, portLabels, knownDeviceLabels);
+
+  function downloadJson() {
+    const blob = new Blob([JSON.stringify(diagnostic, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `linkmetry-report-${safeTimestamp(report.generated_at)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus("Downloaded JSON report.");
+  }
+
+  async function copySummary() {
+    const text = formatDiagnosticSummary(diagnostic);
+    try {
+      await navigator.clipboard?.writeText(text);
+      setStatus("Copied summary to clipboard.");
+    } catch {
+      setStatus("Clipboard unavailable. Download the JSON report instead.");
+    }
+  }
+
+  return (
+    <section className="card diagnosticExportCard">
+      <div>
+        <p className="eyebrow">Shareable report</p>
+        <h2>Export a diagnostic snapshot</h2>
+        <p className="muted">Package the plain-English summary, visible devices, port labels, and latest scan comparison for notes, support, or issue reports.</p>
+      </div>
+      <div className="diagnosticExportActions">
+        <button type="button" onClick={copySummary}>Copy summary</button>
+        <button type="button" onClick={downloadJson}>Download JSON</button>
+      </div>
+      {status ? <p className="diagnosticExportStatus">{status}</p> : null}
     </section>
   );
 }
@@ -1650,6 +1692,48 @@ function formatBytes(bytes: number) {
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+
+function buildDiagnosticExport(report: LiveScanReport, summary: FriendlySummaryData, comparison: ScanComparison | null, portLabels: PortLabels, knownDeviceLabels: KnownDeviceLabels) {
+  const storageByUsbId = new Map(report.storage.devices.filter((device) => device.usb_device_id).map((device) => [device.usb_device_id, device]));
+  return {
+    generatedAt: report.generated_at,
+    platform: report.platform,
+    headline: summary.headline,
+    summary: summary.cards,
+    comparison: comparison ? { headline: comparison.headline, changes: comparison.changes } : null,
+    devices: report.usb.devices.filter(isPrimaryUserDevice).sort(deviceImportanceSort).map((device) => ({
+      name: friendlyDeviceName(device, knownDeviceLabels),
+      role: deviceRoleLabel(device, storageByUsbId.get(device.id)),
+      path: devicePathId(device),
+      portLabel: portLabels[devicePathId(device)] ?? null,
+      speed: device.negotiated_speed?.generation ?? device.negotiated_speed?.label ?? null,
+      verdict: deviceQuickVerdict(device, storageByUsbId.get(device.id)),
+      isExternalDrive: Boolean(storageByUsbId.get(device.id)),
+    })),
+    portLabels,
+  };
+}
+
+function formatDiagnosticSummary(report: ReturnType<typeof buildDiagnosticExport>) {
+  const lines = [
+    `Linkmetry report — ${new Date(report.generatedAt).toLocaleString()}`,
+    report.headline,
+    "",
+    "Summary:",
+    ...report.summary.map((item) => `- ${item.title}: ${item.value} — ${item.note}`),
+    "",
+    "Devices:",
+    ...report.devices.map((device) => `- ${device.name}: ${device.speed ?? "speed unknown"}${device.portLabel ? ` on ${device.portLabel}` : ` at ${device.path}`} — ${device.verdict.message}`),
+  ];
+  if (report.comparison) {
+    lines.push("", `Changes: ${report.comparison.headline}`, ...report.comparison.changes.map((change) => `- ${change.title}: ${change.message}`));
+  }
+  return lines.join("\n");
+}
+
+function safeTimestamp(value: string) {
+  return value.replace(/[^0-9a-z]/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+}
 
 function compareScans(previous: LiveScanReport, current: LiveScanReport, portLabels: PortLabels): ScanComparison {
   const previousDevices = previous.usb.devices.filter(isPrimaryUserDevice);
