@@ -112,6 +112,7 @@ type ScanState =
 type DeviceAction = "explain" | "details" | "path" | "speed";
 type SelectedDeviceAction = { deviceId: string; action: DeviceAction };
 type PortLabels = Record<string, string>;
+type KnownDeviceLabels = Record<string, { name: string; lastSeenAt: string; lastSeenPath?: string; lastSeenSpeed?: string }>;
 type PortMetadata = Record<string, { usb3Verified?: boolean; verifiedWith?: string; verifiedAt?: string; lastSeenDevice?: string; lastSeenSpeed?: string; lastSeenAt?: string }>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
 type Page = "overview" | "ports" | "drives";
@@ -123,6 +124,7 @@ function App() {
   const [scan, setScan] = useState<ScanState>({ status: "idle" });
   const [selectedAction, setSelectedAction] = useState<SelectedDeviceAction | null>(null);
   const [portLabels, setPortLabels] = useState<PortLabels>(() => loadPortLabels());
+  const [knownDeviceLabels, setKnownDeviceLabels] = useState<KnownDeviceLabels>(() => loadKnownDeviceLabels());
   const [portMetadata, setPortMetadata] = useState<PortMetadata>(() => loadPortMetadata());
   const [labelingSession, setLabelingSession] = useState<PortLabelingSession>({ active: false, baselinePathIds: [] });
   const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>(() => loadScanHistory());
@@ -198,6 +200,7 @@ function App() {
 
   useEffect(() => {
     if (!report) return;
+    setKnownDeviceLabels((current) => saveKnownDeviceLabels(report, current));
     setPortMetadata((current) => {
       const next = { ...current };
       for (const device of usbDevices.filter(isPrimaryUserDevice)) {
@@ -267,11 +270,11 @@ function App() {
           {summary ? <FriendlySummary summary={summary} /> : null}
           {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => setScanHistory(saveClearedScanHistory())} /> : null}
           {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
-          {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
+          {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
           {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
         </>
       ) : null}
-      {page === "ports" && report ? <PortMappingPage devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} portMetadata={portMetadata} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
+      {page === "ports" && report ? <PortMappingPage devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} portMetadata={portMetadata} labelingSession={labelingSession} onStartLabeling={startPortLabeling} onStopLabeling={stopPortLabeling} onExportLabels={exportPortLabels} onImportLabels={importPortLabels} onLabel={savePortLabel} onRescan={runScan} scanning={scan.status === "loading"} /> : null}
       {page === "drives" && report ? <DriveDiagnosticsPage cards={storageCards} storageDevices={storageDevices} usbDevices={usbDevices} /> : null}
     </main>
   );
@@ -304,7 +307,7 @@ function OverviewNextActions({ onPage, portLabelCount, driveCount }: { onPage: (
   );
 }
 
-function PortMappingPage({ devices, storageDevices, portLabels, portMetadata, labelingSession, onStartLabeling, onStopLabeling, onExportLabels, onImportLabels, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; portMetadata: PortMetadata; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onExportLabels: () => void; onImportLabels: (labels: PortLabels) => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
+function PortMappingPage({ devices, storageDevices, portLabels, knownDeviceLabels, portMetadata, labelingSession, onStartLabeling, onStopLabeling, onExportLabels, onImportLabels, onLabel, onRescan, scanning }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels; portMetadata: PortMetadata; labelingSession: PortLabelingSession; onStartLabeling: () => void; onStopLabeling: () => void; onExportLabels: () => void; onImportLabels: (labels: PortLabels) => void; onLabel: (pathId: string, label: string) => void; onRescan: () => void; scanning: boolean }) {
   return (
     <section className="portMappingPage">
       <div className="sectionIntro">
@@ -313,9 +316,9 @@ function PortMappingPage({ devices, storageDevices, portLabels, portMetadata, la
         <p className="muted">Give each physical port a name you’ll recognize later.</p>
       </div>
       <Usb3VerificationGuide />
-      <PortMapCards devices={devices} portLabels={portLabels} portMetadata={portMetadata} onLabel={onLabel} />
+      <PortMapCards devices={devices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} portMetadata={portMetadata} onLabel={onLabel} />
       <PortFinderGuide devices={devices} storageDevices={storageDevices} portLabels={portLabels} labelingSession={labelingSession} onStartLabeling={onStartLabeling} onStopLabeling={onStopLabeling} onExportLabels={onExportLabels} onImportLabels={onImportLabels} onLabel={onLabel} onRescan={onRescan} scanning={scanning} />
-      <ConnectionMap devices={devices} storageDevices={storageDevices} portLabels={portLabels} onLabel={onLabel} selectedAction={null} onAction={() => undefined} showPortMapping />
+      <ConnectionMap devices={devices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onLabel={onLabel} selectedAction={null} onAction={() => undefined} showPortMapping />
     </section>
   );
 }
@@ -335,7 +338,7 @@ function Usb3VerificationGuide() {
   );
 }
 
-function PortMapCards({ devices, portLabels, portMetadata, onLabel }: { devices: DiagnosticDevice[]; portLabels: PortLabels; portMetadata: PortMetadata; onLabel: (pathId: string, label: string) => void }) {
+function PortMapCards({ devices, portLabels, knownDeviceLabels, portMetadata, onLabel }: { devices: DiagnosticDevice[]; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels; portMetadata: PortMetadata; onLabel: (pathId: string, label: string) => void }) {
   const currentByPath = new Map(devices.filter(isPrimaryUserDevice).map((device) => [devicePathId(device), device]));
   const paths = Array.from(new Set([...Object.keys(portLabels), ...Object.keys(portMetadata), ...currentByPath.keys()])).sort((a, b) => (portLabels[a] ?? a).localeCompare(portLabels[b] ?? b));
 
@@ -355,9 +358,9 @@ function PortMapCards({ devices, portLabels, portMetadata, onLabel }: { devices:
             <article className={`portMapTile ${usb3Verified ? "verified" : "unknown"}`} key={pathId}>
               <span>{capability}</span>
               <strong>{portLabels[pathId] ?? "Unnamed physical port"}</strong>
-              <p>{device ? `${deviceName(device)} connected now` : meta?.lastSeenDevice ? `Last seen: ${meta.lastSeenDevice}` : "No recognizable device seen yet"}</p>
+              <p>{device ? `${friendlyDeviceName(device, knownDeviceLabels)} connected now` : meta?.lastSeenDevice ? `Last seen: ${meta.lastSeenDevice}` : "No recognizable device seen yet"}</p>
               <p className="muted">{speed?.generation ?? speed?.label ?? meta?.lastSeenSpeed ?? "speed not known yet"}</p>
-              {usb3Verified ? <p className="verificationNote">Verified with {meta?.verifiedWith ?? deviceName(device!)}.</p> : <p className="verificationNote muted">To check speed: plug in the T7, scan again, then name the port.</p>}
+              {usb3Verified ? <p className="verificationNote">Verified with {meta?.verifiedWith ?? (device ? friendlyDeviceName(device, knownDeviceLabels) : "a fast USB device")}.</p> : <p className="verificationNote muted">To check speed: plug in the T7, scan again, then name the port.</p>}
               <PortLabelEditor pathId={pathId} portLabels={portLabels} onLabel={onLabel} />
               <details className="evidencePathDisclosure">
                 <summary>Show device ID</summary>
@@ -547,7 +550,7 @@ function PortLabelBackup({ labelCount, onExport, onImport }: { labels: PortLabel
   );
 }
 
-function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedAction, onAction, showPortMapping = false }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; onLabel: (pathId: string, label: string) => void; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void; showPortMapping?: boolean }) {
+function ConnectionMap({ devices, storageDevices, portLabels, knownDeviceLabels, onLabel, selectedAction, onAction, showPortMapping = false }: { devices: DiagnosticDevice[]; storageDevices: StorageDevice[]; portLabels: PortLabels; knownDeviceLabels: KnownDeviceLabels; onLabel: (pathId: string, label: string) => void; selectedAction: SelectedDeviceAction | null; onAction: (action: SelectedDeviceAction | null) => void; showPortMapping?: boolean }) {
   const map = useMemo(() => buildConnectionMap(devices), [devices]);
   const attachedDevices = useMemo(() => devices.filter((device) => !isPortOrPath(device)).sort(deviceImportanceSort), [devices]);
   const primaryDevices = attachedDevices.filter(isPrimaryUserDevice);
@@ -568,7 +571,8 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
             {primaryDevices.map((device) => (
               <div className={`portDevice ${externalStorageIds.has(device.id) ? "primaryDevice" : ""}`} key={device.id}>
                 <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
-                <strong>{deviceName(device)}</strong>
+                <strong>{friendlyDeviceName(device, knownDeviceLabels)}</strong>
+                <KnownDevicePill device={device} knownDeviceLabels={knownDeviceLabels} />
                 <p>{deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                 <InlineDeviceVerdict device={device} storageDevice={storageByUsbId.get(device.id)} />
                 {showPortMapping ? <PortLabelEditor pathId={devicePathId(device)} portLabels={portLabels} onLabel={onLabel} /> : null}
@@ -597,7 +601,8 @@ function ConnectionMap({ devices, storageDevices, portLabels, onLabel, selectedA
                 {accessoryDevices.map((device) => (
                   <div className="portDevice" key={device.id}>
                     <span>{deviceRoleLabel(device, storageByUsbId.get(device.id))}</span>
-                    <strong>{deviceName(device)}</strong>
+                    <strong>{friendlyDeviceName(device, knownDeviceLabels)}</strong>
+                    <KnownDevicePill device={device} knownDeviceLabels={knownDeviceLabels} />
                     <p><SpeedBadge speed={device.negotiated_speed} /> {deviceConnectionSummary(device, storageByUsbId.get(device.id), portLabels)}</p>
                     <PortSpeedEvidence device={device} storageDevice={storageByUsbId.get(device.id)} compact />
                     <details className="evidencePathDisclosure">
@@ -643,6 +648,12 @@ function SpeedBadge({ speed }: { speed?: LinkSpeed }) {
   const label = speed?.generation ?? speed?.label ?? "Unknown speed";
   const tone = speed?.is_usb3_or_better ? "usb3" : speed?.mbps && speed.mbps <= 480 ? "usb2" : "unknown";
   return <span className={`speedBadge ${tone}`}>{label}</span>;
+}
+
+function KnownDevicePill({ device, knownDeviceLabels }: { device: DiagnosticDevice; knownDeviceLabels: KnownDeviceLabels }) {
+  const known = knownDeviceLabels[deviceIdentityKey(device)];
+  if (!known) return null;
+  return <span className="knownDevicePill">Known device</span>;
 }
 
 function summarizePort(children: DiagnosticDevice[]) {
@@ -1477,8 +1488,32 @@ function findPathBottleneck(path: DiagnosticDevice[]) {
   return `${deviceName(slower)} reports ${slower.negotiated_speed?.label}, below the endpoint speed of ${endpoint.negotiated_speed?.label}.`;
 }
 
+function friendlyDeviceName(device: DiagnosticDevice, knownDeviceLabels: KnownDeviceLabels) {
+  return knownDeviceLabels[deviceIdentityKey(device)]?.name ?? deviceName(device);
+}
+
 function deviceName(device: DiagnosticDevice) {
-  return device.product ?? device.manufacturer ?? device.id;
+  const raw = cleanDeviceLabel([device.manufacturer, device.product].filter(Boolean).join(" ") || device.product || device.manufacturer || device.id);
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("pssd t7") || lower.includes("t7 shield")) return "Samsung T7 Shield";
+  if (lower.includes("scarlett")) return raw.includes("Focusrite") ? raw : `Focusrite ${raw}`;
+  if (lower.includes("logitech") && lower.includes("receiver")) return "Logitech receiver";
+  if (lower.includes("keychron")) return raw;
+  if (lower.includes("keyboard") && !lower.includes("keychron")) return raw.includes("Keyboard") ? raw : `${raw} keyboard`;
+  if (lower.includes("mouse")) return raw.includes("Mouse") ? raw : `${raw} mouse`;
+  if (lower.includes("webcam") || lower.includes("camera")) return raw;
+  if (lower.includes("microphone") || lower.includes("mic")) return raw;
+  if (device.kind === "storage" && device.product) return raw;
+  if (device.kind === "human-interface" && !/keyboard|mouse|receiver/i.test(raw)) return `${raw} accessory`;
+  return raw;
+}
+
+function cleanDeviceLabel(label: string) {
+  return label
+    .replace(/\b(Inc\.?|Ltd\.?|Corporation|Corp\.?|Co\.?|Device|USB)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[-_\s]+|[-_\s]+$/g, "") || label;
 }
 
 function benchmarkableMountpoints(device: StorageDevice) {
@@ -1617,6 +1652,29 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
+function saveKnownDeviceLabels(report: LiveScanReport, current: KnownDeviceLabels) {
+  const next = { ...current };
+  for (const device of report.usb.devices.filter(isHumanFacingDevice)) {
+    const key = deviceIdentityKey(device);
+    next[key] = {
+      name: next[key]?.name ?? deviceName(device),
+      lastSeenAt: report.generated_at,
+      lastSeenPath: devicePathId(device),
+      lastSeenSpeed: device.negotiated_speed?.generation ?? device.negotiated_speed?.label,
+    };
+  }
+  window.localStorage.setItem("linkmetry.knownDevices", JSON.stringify(next));
+  return next;
+}
+
+function loadKnownDeviceLabels(): KnownDeviceLabels {
+  try {
+    return JSON.parse(window.localStorage.getItem("linkmetry.knownDevices") ?? "{}") as KnownDeviceLabels;
+  } catch {
+    return {};
+  }
+}
 
 function loadPortLabels(): PortLabels {
   try {

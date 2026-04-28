@@ -371,3 +371,4 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .historyStrip p { margin: 5px 0 0; color: #93a4ba; font-size: 0.76rem; line-height: 1.35; }
 @media (max-width: 980px) { .changeList, .historyStrip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .scanHistoryHeader { flex-direction: column; } .changeList, .historyStrip { grid-template-columns: 1fr; } }
+.knownDevicePill { display: inline-block; width: fit-content; margin: 0 0 8px; border-radius: 999px; padding: 4px 8px; color: #d1fae5; background: rgba(16, 185, 129, 0.13); font-size: 0.68rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
