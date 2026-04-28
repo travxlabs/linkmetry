@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 
 const port = Number(process.env.PORT ?? 9000);
@@ -37,11 +37,27 @@ const server = createServer(async (req, res) => {
       });
     }
 
+    if (url.pathname === "/api/benchmark/auto") {
+      const mount = url.searchParams.get("mount");
+      const iterations = url.searchParams.get("iterations") ?? "3";
+      if (!mount) return sendJson(res, { error: "mount query parameter is required" }, 400);
+      const target = findTestFile(mount);
+      if (!target) {
+        return sendJson(res, { error: `No large readable test file found under ${mount}. Add or choose a large file manually.` }, 404);
+      }
+      const payload = await runCli(["diagnose-storage", "--iterations", iterations, target], 180_000);
+      return sendJson(res, {
+        generated_at: new Date().toISOString(),
+        ...payload,
+      });
+    }
+
     if (url.pathname === "/api/benchmark") {
       const target = url.searchParams.get("target");
       const iterations = url.searchParams.get("iterations") ?? "3";
       if (!target) return sendJson(res, { error: "target query parameter is required" }, 400);
-      const payload = await runCli(["diagnose-storage", "--iterations", iterations, target]);
+      if (target.endsWith("/")) return sendJson(res, { error: "Choose a specific large file, not a folder/mount point." }, 400);
+      const payload = await runCli(["diagnose-storage", "--iterations", iterations, target], 180_000);
       return sendJson(res, {
         generated_at: new Date().toISOString(),
         ...payload,
@@ -62,18 +78,26 @@ server.listen(port, "0.0.0.0", () => {
   console.log(`Linkmetry live preview listening on http://0.0.0.0:${port}`);
 });
 
-function runCli(args) {
+function runCli(args, timeoutMs = 30_000) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn("cargo", ["run", "--quiet", "-p", "linkmetry-cli", "--", ...args], {
       cwd: repoRoot,
       env: process.env,
     });
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`linkmetry-cli timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
-    child.on("error", reject);
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
     child.on("close", (code) => {
+      clearTimeout(timeout);
       if (code !== 0) {
         reject(new Error(stderr.trim() || `linkmetry-cli exited with ${code}`));
         return;
@@ -85,6 +109,52 @@ function runCli(args) {
       }
     });
   });
+}
+
+function findTestFile(mount) {
+  const mountPath = resolve(mount);
+  const allowedRoots = ["/mnt", "/home/brad/Videos", "/home/brad/Documents"].map((root) => resolve(root));
+  if (!allowedRoots.some((root) => mountPath === root || mountPath.startsWith(`${root}/`))) return null;
+  if (!existsSync(mountPath) || !statSync(mountPath).isDirectory()) return null;
+
+  const ignoredDirectories = new Set([".git", "node_modules", "target"]);
+  const stack = [mountPath];
+  let bestPath = null;
+  let bestSize = 0;
+  let scanned = 0;
+
+  while (stack.length > 0 && scanned <= 2_000) {
+    const current = stack.shift();
+    let entries;
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      const entryPath = join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!ignoredDirectories.has(entry.name)) stack.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      scanned += 1;
+      try {
+        const size = statSync(entryPath).size;
+        if (size >= 50 * 1024 * 1024 && size > bestSize) {
+          bestPath = entryPath;
+          bestSize = size;
+        }
+      } catch {
+        // Skip unreadable or disappearing files.
+      }
+      if (scanned > 2_000) break;
+    }
+  }
+
+  return bestPath;
 }
 
 function serveStatic(pathname, res) {
