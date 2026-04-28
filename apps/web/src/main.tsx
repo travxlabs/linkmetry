@@ -296,6 +296,7 @@ function App() {
       </section>
 
       {scan.status === "idle" ? <PreScanCard onScan={runScan} /> : null}
+      {report ? <GettingStartedGuide onScan={runScan} onPage={setPage} scanning={scan.status === "loading"} portLabelCount={Object.keys(portLabels).length} scanCount={scanHistory.length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
       {scan.status === "loading" && !report ? <LoadingCard /> : null}
       {scan.status !== "loading" && report && usbDevices.length === 0 ? <EmptyCard /> : null}
       {report ? <PageTabs page={page} onPage={setPage} portCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
@@ -415,6 +416,65 @@ function PreScanCard({ onScan }: { onScan: () => void }) {
       <h2>Run a scan when you are ready.</h2>
       <p className="muted">Linkmetry will show what is plugged in, where it is connected, and anything worth checking. Details stay hidden unless you open them.</p>
       <button className="scanButton" onClick={onScan}>Run scan</button>
+    </section>
+  );
+}
+
+function GettingStartedGuide({ onScan, onPage, scanning, portLabelCount, scanCount, driveCount }: { onScan: () => void; onPage: (page: Page) => void; scanning: boolean; portLabelCount: number; scanCount: number; driveCount: number }) {
+  const steps = [
+    {
+      done: scanCount > 0,
+      label: "Scan this computer",
+      title: "Find connected devices",
+      body: "Start with a safe read-only scan. Linkmetry saves it as your baseline.",
+      action: scanning ? "Scanning…" : "Scan again",
+      onClick: onScan,
+      disabled: scanning,
+    },
+    {
+      done: portLabelCount > 0,
+      label: "Map one port",
+      title: "Name a physical USB port",
+      body: "Move one obvious device, rescan, then label the port in words you recognize.",
+      action: "Open port map",
+      onClick: () => onPage("ports"),
+      disabled: false,
+    },
+    {
+      done: driveCount > 0,
+      label: "Check a drive",
+      title: "Inspect external storage",
+      body: driveCount > 0 ? "An external drive is connected. Check its link speed and optional read test." : "Plug in an external drive when you want a real speed/bottleneck check.",
+      action: "Open drive checks",
+      onClick: () => onPage("drives"),
+      disabled: false,
+    },
+  ];
+  const doneCount = steps.filter((step) => step.done).length;
+
+  return (
+    <section className="card gettingStartedCard">
+      <div className="gettingStartedHeader">
+        <div>
+          <p className="eyebrow">Guided setup</p>
+          <h2>{doneCount === steps.length ? "Core setup looks good." : "What to do next"}</h2>
+          <p className="muted">Follow this loop: scan, move one thing, rescan, then label what changed. No USB jargon required.</p>
+        </div>
+        <span>{doneCount}/{steps.length} done</span>
+      </div>
+      <div className="setupSteps">
+        {steps.map((step, index) => (
+          <button type="button" className={step.done ? "done" : ""} onClick={step.onClick} disabled={step.disabled} key={step.label}>
+            <span>{step.done ? "✓" : index + 1}</span>
+            <div>
+              <em>{step.label}</em>
+              <strong>{step.title}</strong>
+              <p>{step.body}</p>
+              <b>{step.action}</b>
+            </div>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

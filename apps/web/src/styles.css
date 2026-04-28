@@ -372,3 +372,18 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 @media (max-width: 980px) { .changeList, .historyStrip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .scanHistoryHeader { flex-direction: column; } .changeList, .historyStrip { grid-template-columns: 1fr; } }
 .knownDevicePill { display: inline-block; width: fit-content; margin: 0 0 8px; border-radius: 999px; padding: 4px 8px; color: #d1fae5; background: rgba(16, 185, 129, 0.13); font-size: 0.68rem; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+.gettingStartedCard { margin-top: 20px; background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(16, 185, 129, 0.07)), rgba(15, 23, 42, 0.78); }
+.gettingStartedHeader { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.gettingStartedHeader > span { border-radius: 999px; padding: 8px 11px; color: #d1fae5; background: rgba(16, 185, 129, 0.14); font-size: 0.82rem; font-weight: 950; white-space: nowrap; }
+.setupSteps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.setupSteps button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 13px; text-align: left; border: 1px solid rgba(125, 211, 252, 0.18); border-radius: 20px; padding: 16px; color: inherit; background: rgba(2, 6, 23, 0.34); cursor: pointer; }
+.setupSteps button:hover:not(:disabled) { border-color: rgba(125, 211, 252, 0.42); transform: translateY(-1px); }
+.setupSteps button:disabled { opacity: 0.7; cursor: wait; }
+.setupSteps button > span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; color: #05111f; background: #7dd3fc; font-weight: 950; }
+.setupSteps button.done > span { background: #34d399; }
+.setupSteps em { display: block; color: #7dd3fc; font-size: 0.72rem; font-style: normal; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+.setupSteps strong { display: block; margin-top: 5px; color: #edf5ff; }
+.setupSteps p { margin: 6px 0 10px; color: #a8b7ca; line-height: 1.45; font-size: 0.88rem; }
+.setupSteps b { color: #d1fae5; font-size: 0.82rem; }
+@media (max-width: 920px) { .setupSteps { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .gettingStartedHeader { flex-direction: column; } }
