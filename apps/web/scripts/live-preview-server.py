@@ -8,9 +8,13 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 DIST = Path('/app/dist').resolve()
 CLI = '/app/linkmetry-cli'
+DATA_ROOT = Path(os.environ.get('LINKMETRY_DATA_DIR', '/app/data')).resolve()
+APP_DATA_PATH = DATA_ROOT / 'app-data.json'
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path.split('?', 1)[0] == '/api/app-data':
+            return self.json(self.read_app_data())
         if self.path.split('?', 1)[0] == '/api/health':
             return self.json({'ok': True})
         if self.path.split('?', 1)[0] == '/api/scan':
@@ -23,8 +27,58 @@ class Handler(BaseHTTPRequestHandler):
             return self.benchmark()
         return self.static()
 
+    def do_POST(self):
+        if self.path.split('?', 1)[0] == '/api/app-data':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if length > 5_000_000:
+                    return self.json({'error': 'Request body too large'}, status=413)
+                payload = json.loads(self.rfile.read(length).decode() or '{}')
+                return self.json(self.write_app_data(payload))
+            except Exception as exc:
+                return self.json({'error': str(exc)}, status=400)
+        return self.json({'error': 'Not found'}, status=404)
+
     def do_HEAD(self):
         return self.static(head=True)
+
+    def default_app_data(self):
+        return {
+            'version': 1,
+            'portLabels': {},
+            'portMetadata': {},
+            'knownDevices': {},
+            'scanHistory': [],
+            'updatedAt': None,
+        }
+
+    def read_app_data(self):
+        try:
+            if not APP_DATA_PATH.exists():
+                return self.default_app_data()
+            data = self.default_app_data()
+            with APP_DATA_PATH.open('r', encoding='utf-8') as handle:
+                data.update(json.load(handle))
+            return data
+        except Exception as exc:
+            data = self.default_app_data()
+            data['error'] = f'Could not read app data: {exc}'
+            return data
+
+    def write_app_data(self, payload):
+        current = self.read_app_data()
+        next_data = {
+            'version': 1,
+            'portLabels': payload.get('portLabels') if isinstance(payload.get('portLabels'), dict) else current.get('portLabels', {}),
+            'portMetadata': payload.get('portMetadata') if isinstance(payload.get('portMetadata'), dict) else current.get('portMetadata', {}),
+            'knownDevices': payload.get('knownDevices') if isinstance(payload.get('knownDevices'), dict) else current.get('knownDevices', {}),
+            'scanHistory': payload.get('scanHistory', current.get('scanHistory', []))[:20] if isinstance(payload.get('scanHistory', current.get('scanHistory', [])), list) else current.get('scanHistory', []),
+            'updatedAt': self.date_time_string(),
+        }
+        DATA_ROOT.mkdir(parents=True, exist_ok=True)
+        with APP_DATA_PATH.open('w', encoding='utf-8') as handle:
+            json.dump(next_data, handle, indent=2)
+        return next_data
 
     def scan(self):
         try:

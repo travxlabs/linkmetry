@@ -113,6 +113,7 @@ type DeviceAction = "explain" | "details" | "path" | "speed";
 type SelectedDeviceAction = { deviceId: string; action: DeviceAction };
 type PortLabels = Record<string, string>;
 type KnownDeviceLabels = Record<string, { name: string; lastSeenAt: string; lastSeenPath?: string; lastSeenSpeed?: string }>;
+type AppData = { portLabels: PortLabels; portMetadata: PortMetadata; knownDevices: KnownDeviceLabels; scanHistory: ScanHistoryEntry[]; updatedAt?: string | null };
 type PortMetadata = Record<string, { usb3Verified?: boolean; verifiedWith?: string; verifiedAt?: string; lastSeenDevice?: string; lastSeenSpeed?: string; lastSeenAt?: string }>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
 type Page = "overview" | "ports" | "drives";
@@ -130,6 +131,16 @@ function App() {
   const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>(() => loadScanHistory());
   const [page, setPage] = useState<Page>("overview");
 
+  function syncAppData(patch: Partial<AppData>) {
+    persistAppData({
+      portLabels: loadPortLabels(),
+      portMetadata: loadPortMetadata(),
+      knownDevices: loadKnownDeviceLabels(),
+      scanHistory: loadScanHistory(),
+      ...patch,
+    });
+  }
+
   function savePortLabel(pathId: string, label: string) {
     setPortLabels((current) => {
       const next = { ...current };
@@ -137,6 +148,7 @@ function App() {
       if (trimmed) next[pathId] = trimmed;
       else delete next[pathId];
       window.localStorage.setItem("linkmetry.portLabels", JSON.stringify(next));
+      syncAppData({ portLabels: next });
       return next;
     });
   }
@@ -164,6 +176,7 @@ function App() {
   function importPortLabels(labels: PortLabels) {
     setPortLabels(labels);
     window.localStorage.setItem("linkmetry.portLabels", JSON.stringify(labels));
+    syncAppData({ portLabels: labels });
   }
 
   async function runScan() {
@@ -176,7 +189,11 @@ function App() {
       await minimumScanTime;
       const report = payload as LiveScanReport;
       setScan({ status: "ready", report });
-      setScanHistory((current) => saveScanHistory(report, current));
+      setScanHistory((current) => {
+        const next = saveScanHistory(report, current);
+        syncAppData({ scanHistory: next });
+        return next;
+      });
     } catch (error) {
       await minimumScanTime;
       setScan((current) => ({
@@ -187,6 +204,18 @@ function App() {
     }
   }
 
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAppData().then((data) => {
+      if (cancelled || !data) return;
+      if (Object.keys(data.portLabels ?? {}).length > 0) setPortLabels(data.portLabels);
+      if (Object.keys(data.portMetadata ?? {}).length > 0) setPortMetadata(data.portMetadata);
+      if (Object.keys(data.knownDevices ?? {}).length > 0) setKnownDeviceLabels(data.knownDevices);
+      if ((data.scanHistory ?? []).length > 0) setScanHistory(data.scanHistory.slice(0, 8));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const report = scan.report;
   const storageDevices = report?.storage.devices ?? [];
@@ -200,7 +229,11 @@ function App() {
 
   useEffect(() => {
     if (!report) return;
-    setKnownDeviceLabels((current) => saveKnownDeviceLabels(report, current));
+    setKnownDeviceLabels((current) => {
+      const next = saveKnownDeviceLabels(report, current);
+      syncAppData({ knownDevices: next });
+      return next;
+    });
     setPortMetadata((current) => {
       const next = { ...current };
       for (const device of usbDevices.filter(isPrimaryUserDevice)) {
@@ -218,6 +251,7 @@ function App() {
         };
       }
       window.localStorage.setItem("linkmetry.portMetadata", JSON.stringify(next));
+      syncAppData({ portMetadata: next });
       return next;
     });
   }, [report, usbDevices]);
@@ -268,7 +302,7 @@ function App() {
       {page === "overview" ? (
         <>
           {summary ? <FriendlySummary summary={summary} /> : null}
-          {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => setScanHistory(saveClearedScanHistory())} /> : null}
+          {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => { const next = saveClearedScanHistory(); setScanHistory(next); syncAppData({ scanHistory: next }); }} /> : null}
           {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
           {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
           {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
@@ -1645,6 +1679,44 @@ function scanStatusLabel(status: ScanState["status"]) {
 
 function statusLabel(status: StatusTone) {
   return { good: "Looks good", warning: "Needs attention", info: "Info", unknown: "Unknown" }[status];
+}
+
+async function fetchAppData(): Promise<AppData | null> {
+  try {
+    const response = await fetch("/api/app-data", { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return normalizeAppData(payload);
+  } catch {
+    return null;
+  }
+}
+
+function persistAppData(data: AppData) {
+  window.localStorage.setItem("linkmetry.portLabels", JSON.stringify(data.portLabels));
+  window.localStorage.setItem("linkmetry.portMetadata", JSON.stringify(data.portMetadata));
+  window.localStorage.setItem("linkmetry.knownDevices", JSON.stringify(data.knownDevices));
+  window.localStorage.setItem("linkmetry.scanHistory", JSON.stringify(data.scanHistory.slice(0, 8)));
+
+  fetch("/api/app-data", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...data, scanHistory: data.scanHistory.slice(0, 8) }),
+  }).catch(() => undefined);
+}
+
+function normalizeAppData(payload: Partial<AppData>): AppData {
+  return {
+    portLabels: isRecord(payload.portLabels) ? payload.portLabels as PortLabels : {},
+    portMetadata: isRecord(payload.portMetadata) ? payload.portMetadata as PortMetadata : {},
+    knownDevices: isRecord(payload.knownDevices) ? payload.knownDevices as KnownDeviceLabels : {},
+    scanHistory: Array.isArray(payload.scanHistory) ? payload.scanHistory.slice(0, 8) as ScanHistoryEntry[] : [],
+    updatedAt: payload.updatedAt ?? null,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 createRoot(document.getElementById("root")!).render(
