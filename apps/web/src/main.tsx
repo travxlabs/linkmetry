@@ -115,6 +115,9 @@ type PortLabels = Record<string, string>;
 type PortMetadata = Record<string, { usb3Verified?: boolean; verifiedWith?: string; verifiedAt?: string; lastSeenDevice?: string; lastSeenSpeed?: string; lastSeenAt?: string }>;
 type PortLabelingSession = { active: boolean; baselinePathIds: string[] };
 type Page = "overview" | "ports" | "drives";
+type ScanHistoryEntry = { id: string; label: string; generated_at: string; report: LiveScanReport };
+type ScanChange = { tone: StatusTone; title: string; message: string };
+type ScanComparison = { headline: string; subline: string; changes: ScanChange[] };
 
 function App() {
   const [scan, setScan] = useState<ScanState>({ status: "idle" });
@@ -122,6 +125,7 @@ function App() {
   const [portLabels, setPortLabels] = useState<PortLabels>(() => loadPortLabels());
   const [portMetadata, setPortMetadata] = useState<PortMetadata>(() => loadPortMetadata());
   const [labelingSession, setLabelingSession] = useState<PortLabelingSession>({ active: false, baselinePathIds: [] });
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>(() => loadScanHistory());
   const [page, setPage] = useState<Page>("overview");
 
   function savePortLabel(pathId: string, label: string) {
@@ -168,7 +172,9 @@ function App() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? `Scan failed with HTTP ${response.status}`);
       await minimumScanTime;
-      setScan({ status: "ready", report: payload });
+      const report = payload as LiveScanReport;
+      setScan({ status: "ready", report });
+      setScanHistory((current) => saveScanHistory(report, current));
     } catch (error) {
       await minimumScanTime;
       setScan((current) => ({
@@ -188,6 +194,7 @@ function App() {
   const humanDeviceCount = usbDevices.filter(isPrimaryUserDevice).length;
 
   const summary = report ? buildFriendlySummary(usbDevices, storageDevices) : null;
+  const comparison = report && scanHistory[1] ? compareScans(scanHistory[1].report, report, portLabels) : null;
 
   useEffect(() => {
     if (!report) return;
@@ -258,6 +265,7 @@ function App() {
       {page === "overview" ? (
         <>
           {summary ? <FriendlySummary summary={summary} /> : null}
+          {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => setScanHistory(saveClearedScanHistory())} /> : null}
           {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
           {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
           {report ? <UsbInventory devices={usbDevices} storageDevices={storageDevices} /> : null}
@@ -413,6 +421,41 @@ function FriendlySummary({ summary }: { summary: FriendlySummaryData }) {
             <span>{card.title}</span>
             <strong>{card.value}</strong>
             <p>{card.note}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScanHistoryPanel({ comparison, history, onClear }: { comparison: ScanComparison | null; history: ScanHistoryEntry[]; onClear: () => void }) {
+  return (
+    <section className="card scanHistoryCard">
+      <div className="scanHistoryHeader">
+        <div>
+          <p className="eyebrow">Scan history</p>
+          <h2>{comparison?.headline ?? "Baseline saved"}</h2>
+          <p className="muted">{comparison?.subline ?? "Run another scan after moving a device and Linkmetry will explain what changed."}</p>
+        </div>
+        <button type="button" className="plainButton" onClick={onClear} disabled={history.length === 0}>Clear history</button>
+      </div>
+      {comparison ? (
+        <div className="changeList">
+          {comparison.changes.map((change, index) => (
+            <div className={`changeItem ${change.tone}`} key={`${change.title}-${index}`}>
+              <span>{statusLabel(change.tone)}</span>
+              <strong>{change.title}</strong>
+              <p>{change.message}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="historyStrip">
+        {history.slice(0, 5).map((entry, index) => (
+          <div className={index === 0 ? "active" : ""} key={entry.id}>
+            <span>{index === 0 ? "Current scan" : `Previous scan ${index}`}</span>
+            <strong>{entry.label}</strong>
+            <p>{entry.report.usb.devices.filter(isPrimaryUserDevice).length} visible devices · {entry.report.storage.devices.filter((device) => device.transport === "usb").length} USB drive{entry.report.storage.devices.filter((device) => device.transport === "usb").length === 1 ? "" : "s"}</p>
           </div>
         ))}
       </div>
@@ -1476,6 +1519,89 @@ function formatBytes(bytes: number) {
     unit += 1;
   }
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+
+function compareScans(previous: LiveScanReport, current: LiveScanReport, portLabels: PortLabels): ScanComparison {
+  const previousDevices = previous.usb.devices.filter(isPrimaryUserDevice);
+  const currentDevices = current.usb.devices.filter(isPrimaryUserDevice);
+  const previousByIdentity = new Map(previousDevices.map((device) => [deviceIdentityKey(device), device]));
+  const currentByIdentity = new Map(currentDevices.map((device) => [deviceIdentityKey(device), device]));
+  const changes: ScanChange[] = [];
+
+  for (const device of currentDevices) {
+    const key = deviceIdentityKey(device);
+    const before = previousByIdentity.get(key);
+    if (!before) {
+      changes.push({ tone: "info", title: `${deviceName(device)} appeared`, message: `New device detected on ${friendlyPortName(device, portLabels)} at ${device.negotiated_speed?.generation ?? device.negotiated_speed?.label ?? "unknown speed"}.` });
+      continue;
+    }
+
+    const beforePath = devicePathId(before);
+    const afterPath = devicePathId(device);
+    if (beforePath !== afterPath) {
+      changes.push({ tone: "info", title: `${deviceName(device)} moved`, message: `Moved from ${friendlyPathName(beforePath, portLabels)} to ${friendlyPathName(afterPath, portLabels)}.` });
+    }
+
+    const beforeSpeed = before.negotiated_speed?.mbps;
+    const afterSpeed = device.negotiated_speed?.mbps;
+    if (beforeSpeed && afterSpeed && beforeSpeed !== afterSpeed) {
+      changes.push({ tone: afterSpeed > beforeSpeed ? "good" : "warning", title: `${deviceName(device)} speed changed`, message: `Changed from ${before.negotiated_speed?.label ?? `${beforeSpeed} Mbps`} to ${device.negotiated_speed?.label ?? `${afterSpeed} Mbps`}.` });
+    }
+  }
+
+  for (const device of previousDevices) {
+    if (!currentByIdentity.has(deviceIdentityKey(device))) {
+      changes.push({ tone: "unknown", title: `${deviceName(device)} disappeared`, message: `It was previously on ${friendlyPortName(device, portLabels)}.` });
+    }
+  }
+
+  if (changes.length === 0) {
+    changes.push({ tone: "good", title: "No visible changes", message: "The same recognizable devices appear to be on the same ports at the same speeds." });
+  }
+
+  const important = changes.filter((change) => change.tone === "warning" || change.title.includes("moved") || change.title.includes("speed changed"));
+  return {
+    headline: important.length > 0 ? `${important.length} important change${important.length === 1 ? "" : "s"} since last scan` : "No important changes since last scan",
+    subline: `Compared with ${new Date(previous.generated_at).toLocaleTimeString()}.`,
+    changes,
+  };
+}
+
+function deviceIdentityKey(device: DiagnosticDevice) {
+  const serial = device.serial?.trim();
+  if (serial) return `serial:${serial}`;
+  return [device.vendor_id, device.product_id, device.manufacturer, device.product].filter(Boolean).join(":") || device.id;
+}
+
+function friendlyPathName(pathId: string, portLabels: PortLabels) {
+  return portLabels[pathId] ? `${portLabels[pathId]} (${pathId})` : `path ${pathId}`;
+}
+
+function saveScanHistory(report: LiveScanReport, current: ScanHistoryEntry[]) {
+  const entry: ScanHistoryEntry = {
+    id: `${report.generated_at}-${Math.random().toString(16).slice(2)}`,
+    label: new Date(report.generated_at).toLocaleString(),
+    generated_at: report.generated_at,
+    report,
+  };
+  const next = [entry, ...current].slice(0, 8);
+  window.localStorage.setItem("linkmetry.scanHistory", JSON.stringify(next));
+  return next;
+}
+
+function saveClearedScanHistory() {
+  window.localStorage.removeItem("linkmetry.scanHistory");
+  return [];
+}
+
+function loadScanHistory(): ScanHistoryEntry[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("linkmetry.scanHistory") ?? "[]") as ScanHistoryEntry[];
+    return Array.isArray(parsed) ? parsed.slice(0, 8) : [];
+  } catch {
+    return [];
+  }
 }
 
 function scanStatusLabel(status: ScanState["status"]) {
