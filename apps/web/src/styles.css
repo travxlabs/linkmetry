@@ -406,3 +406,12 @@ dd { margin: 6px 0 0; color: #e5edf7; font-weight: 750; }
 .recommendationList p { margin: 0 0 10px; color: #a8b7ca; line-height: 1.45; font-size: 0.9rem; }
 .recommendationList b { color: #d1fae5; font-size: 0.82rem; }
 @media (max-width: 820px) { .recommendationList { grid-template-columns: 1fr; } .recommendationsHeader { flex-direction: column; } }
+.appDataBackupCard { margin-top: 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; }
+.backupStats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.backupStats span { border-radius: 999px; padding: 6px 9px; color: #bfdbfe; background: rgba(14, 165, 233, 0.1); font-size: 0.76rem; font-weight: 850; }
+.appDataBackupActions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.appDataBackupActions button, .appDataBackupActions label { border: 1px solid rgba(125, 211, 252, 0.24); border-radius: 999px; padding: 10px 13px; color: #bfdbfe; background: rgba(14, 165, 233, 0.08); cursor: pointer; font-weight: 850; }
+.appDataBackupActions button { color: #05111f; background: linear-gradient(135deg, #7dd3fc, #a7f3d0); border-color: transparent; }
+.appDataBackupActions input { display: none; }
+.appDataBackupStatus { grid-column: 1 / -1; margin: 0; color: #d1fae5; font-weight: 800; }
+@media (max-width: 760px) { .appDataBackupCard { grid-template-columns: 1fr; } .appDataBackupActions { justify-content: flex-start; } }

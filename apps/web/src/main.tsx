@@ -180,6 +180,18 @@ function App() {
     syncAppData({ portLabels: labels });
   }
 
+  function currentAppData(): AppData {
+    return { portLabels, portMetadata, knownDevices: knownDeviceLabels, scanHistory };
+  }
+
+  function importAppData(data: AppData) {
+    setPortLabels(data.portLabels);
+    setPortMetadata(data.portMetadata);
+    setKnownDeviceLabels(data.knownDevices);
+    setScanHistory(data.scanHistory.slice(0, 8));
+    persistAppData({ ...data, scanHistory: data.scanHistory.slice(0, 8) });
+  }
+
   async function runScan() {
     setScan((current) => ({ status: "loading", report: current.report }));
     const minimumScanTime = wait(2000);
@@ -306,6 +318,7 @@ function App() {
           {summary ? <FriendlySummary summary={summary} /> : null}
           {report ? <RecommendedFixes report={report} comparison={comparison} portLabels={portLabels} onPage={setPage} /> : null}
           {report && summary ? <DiagnosticReportExport report={report} summary={summary} comparison={comparison} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} /> : null}
+          {report ? <AppDataBackup data={currentAppData()} onImport={importAppData} /> : null}
           {report ? <ScanHistoryPanel comparison={comparison} history={scanHistory} onClear={() => { const next = saveClearedScanHistory(); setScanHistory(next); syncAppData({ scanHistory: next }); }} /> : null}
           {report ? <OverviewNextActions onPage={setPage} portLabelCount={Object.keys(portLabels).length} driveCount={storageDevices.filter((device) => device.transport === "usb").length} /> : null}
           {report ? <ConnectionMap devices={usbDevices} storageDevices={storageDevices} portLabels={portLabels} knownDeviceLabels={knownDeviceLabels} onLabel={savePortLabel} selectedAction={selectedAction} onAction={setSelectedAction} showPortMapping={false} /> : null}
@@ -591,6 +604,51 @@ function DiagnosticReportExport({ report, summary, comparison, portLabels, known
         <button type="button" onClick={downloadJson}>Download JSON</button>
       </div>
       {status ? <p className="diagnosticExportStatus">{status}</p> : null}
+    </section>
+  );
+}
+
+function AppDataBackup({ data, onImport }: { data: AppData; onImport: (data: AppData) => void }) {
+  const [status, setStatus] = useState<string | null>(null);
+  const labelCount = Object.keys(data.portLabels).length;
+  const knownCount = Object.keys(data.knownDevices).length;
+
+  function exportBackup() {
+    const payload = { ...data, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `linkmetry-backup-${safeTimestamp(new Date().toISOString())}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus("Downloaded full backup.");
+  }
+
+  async function importBackup(file?: File) {
+    if (!file) return;
+    try {
+      const parsed = normalizeAppData(JSON.parse(await file.text()));
+      onImport(parsed);
+      setStatus(`Imported ${Object.keys(parsed.portLabels).length} labels, ${Object.keys(parsed.knownDevices).length} known devices, and ${parsed.scanHistory.length} scans.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? `Import failed: ${error.message}` : "Import failed.");
+    }
+  }
+
+  return (
+    <section className="card appDataBackupCard">
+      <div>
+        <p className="eyebrow">Backup app data</p>
+        <h2>Save or restore Linkmetry state</h2>
+        <p className="muted">Back up labels, verified ports, known devices, and scan history as one file.</p>
+        <div className="backupStats"><span>{labelCount} labels</span><span>{knownCount} known devices</span><span>{data.scanHistory.length} scans</span></div>
+      </div>
+      <div className="appDataBackupActions">
+        <button type="button" onClick={exportBackup}>Export backup</button>
+        <label>Import backup<input type="file" accept="application/json,.json" onChange={(event) => importBackup(event.target.files?.[0])} /></label>
+      </div>
+      {status ? <p className="appDataBackupStatus">{status}</p> : null}
     </section>
   );
 }
